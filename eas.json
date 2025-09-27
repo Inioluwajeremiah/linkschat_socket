@@ -1,0 +1,25 @@
+{
+  "cli": {
+    "version": ">= 7.8.2",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_NO_INSTALL": "1"
+      }
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+}
+
+//Linkschat ==>> Linkschatinc@
