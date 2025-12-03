@@ -1,4 +1,4 @@
-import { Alert, PermissionsAndroid, Platform } from "react-native";
+import { Alert, Linking, PermissionsAndroid, Platform } from "react-native";
 import messaging from "@react-native-firebase/messaging";
 import { useEffect } from "react";
 

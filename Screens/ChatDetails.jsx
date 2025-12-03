@@ -27,7 +27,6 @@ import firestore from "@react-native-firebase/firestore";
 import useGetUserStatus from "../hooks/useGetUserStatus";
 import DeleteMessageHeader from "../Components/DeleteMessageHeader";
 import useUpdateMessageStatus from "../hooks/useUpdateMessageStatus";
-import { setRefetchChat } from "../Store/slices/chatSlice";
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { cleanupSocket, initSocket } from "../utils/socket";
 import { APIEndPoints } from "../utils/ApiEndpoints";
