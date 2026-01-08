@@ -6,8 +6,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import IonIcons from "@expo/vector-icons/Ionicons";
-import { useDeleteMessageMutation } from "../Store/apislices/messageApiSlice";
 import { Colors } from "../utils/Colors";
+import { useDeleteMessageMutation } from "../Store/apislices/messageApiSlice";
+import { useSelector } from "react-redux";
 
 const DeleteMessageHeader = ({
   noOfMessagesSelected,
@@ -17,13 +18,21 @@ const DeleteMessageHeader = ({
 }) => {
   const [deleteMessage, { isLoading: loadingDeleteMessage }] =
     useDeleteMessageMutation();
+  const { userData } = useSelector((state) => state.auth);
+  const userId = JSON.parse(userData)?.userId;
 
   const handleDeleteMessage = async () => {
     try {
-      const response = await deleteMessage({
+      const body = {
         messageIds: messagesToDelete,
         chatId,
-      });
+        senderId: userId,
+      };
+
+      console.log("handleDeleteMessage body ===>>> ", body);
+      const response = await deleteMessage(body);
+
+      console.log("delete message response ===>>> ", response);
 
       if (response?.data) {
         setMessagesToDelete([]);
@@ -56,7 +65,7 @@ const DeleteMessageHeader = ({
         paddingVertical: 10,
         height: 80,
         position: "absolute",
-        top: 0,
+        top: 10,
         left: 0,
         right: 0,
         zIndex: 10,

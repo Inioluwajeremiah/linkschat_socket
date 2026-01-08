@@ -19,10 +19,9 @@ import useGetUserStatus from "../hooks/useGetUserStatus";
 import { useSelector, useDispatch } from "react-redux";
 import { setUserOffline, setUserOnline } from "../utils/presence";
 import { useStreamCall } from "../hooks/streamCallHooksDelete/useStreamCall";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useDeleteGroupMutation } from "../Store/apislices/groupChatSlice";
 
-const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
+const GroupChatHeader = ({ chat, isAdmin, isNewChat, userBDetails }) => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const imageSize = windowWidth * 0.15;
@@ -36,8 +35,8 @@ const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
   const { userData } = useSelector((state) => state.auth);
   const userId = JSON.parse(userData)?.userId;
 
-  console.log("userid ===>> ", userId);
-  console.log("chat at ChatHeader ===>>> ", chat);
+  console.log("GroupChatHeader userid ===>> ", userId);
+  console.log("chat at GroupChatHeader ===>>> ", chat);
 
   const { GetOrCreateCall } = useStreamCall(
     userBDetails?.id,
@@ -112,7 +111,7 @@ const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
       {/* Left - Back & User Info */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <TouchableOpacity
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => navigation.goBack()}
           style={styles.iconButton}
         >
           <MaterialIcons name="keyboard-arrow-left" size={34} color="white" />
@@ -120,14 +119,12 @@ const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
 
         <Image
           source={
-            chat?.isGroup
+            chat?.groupAvatar
               ? { uri: chat.groupAvatar }
               : isNewChat
-              ? chat?.imageUrl
-                ? { uri: chat.imageUrl }
+              ? chat?.groupAvatar
+                ? { uri: chat.groupAvatar }
                 : require("../assets/user.png")
-              : userBDetails?.imageUrl
-              ? { uri: userBDetails.imageUrl }
               : require("../assets/user.png")
           }
           style={{
@@ -144,9 +141,7 @@ const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
             numberOfLines={1}
             style={{ fontWeight: "bold", color: "white", fontSize: 16 }}
           >
-            {chat?.isGroup
-              ? chat?.groupName
-              : chat?.sender || chat?.userName || userBDetails?.userName}
+            {chat?.groupName}
           </Text>
           <Text style={{ fontSize: 12, color: "#fff", marginTop: 2 }}>
             {status?.online ? "Online" : "Offline"}
@@ -161,7 +156,7 @@ const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
         </TouchableOpacity>
 
         {/* Options menu only for groups */}
-        {chat?.isGroup && chat.chatId === userId && (
+        {isAdmin && (
           <TouchableOpacity
             onPress={ToggleOptionsMenu}
             style={styles.iconButton}
@@ -265,7 +260,7 @@ const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
   );
 };
 
-export default ChatHeader;
+export default GroupChatHeader;
 
 const styles = StyleSheet.create({
   iconButton: {

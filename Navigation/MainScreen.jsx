@@ -16,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { clearExpiredViewedStatus } from "../Store/slices/statusSlice";
+import EditGroupScreen from "../Screens/EditGroupScreen";
 
 const Stack = createStackNavigator();
 
@@ -100,6 +101,7 @@ export const MainScreen = () => {
           />
           <Stack.Screen name="AddNewGroup" component={AddNewGroup} />
           <Stack.Screen name="GroupChatDetails" component={GroupChatDetails} />
+          <Stack.Screen name="EditGroupScreen" component={EditGroupScreen} />
         </Stack.Navigator>
       </LinksChatStreamCallProvider>
     </LinksChatStreamVideoProvider>

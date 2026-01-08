@@ -1,7 +1,10 @@
 import {
+  ActivityIndicator,
   Alert,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -13,70 +16,61 @@ import ChatHeader from "../Components/ChatsHeader";
 import RenderChats from "../Components/RenderChat";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Toast from "react-native-toast-message";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import {
+  useCreateMessageMutation,
+  useGetChatMessagesQuery,
+} from "../Store/apislices/messageApiSlice";
 import { windowHeight, windowWidth } from "../utils/Dimensions";
 import { Colors } from "../utils/Colors";
+import firestore from "@react-native-firebase/firestore";
+import useGetUserStatus from "../hooks/useGetUserStatus";
 import DeleteMessageHeader from "../Components/DeleteMessageHeader";
 import useUpdateMessageStatus from "../hooks/useUpdateMessageStatus";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useSocket } from "../socket/useSocket";
-import LoadingSpinner from "../Components/LoadingSpinner";
-import {
-  useCreateGroupMessageMutation,
-  useGetGroupChatQuery,
-} from "../Store/apislices/groupChatSlice";
-import GroupChatHeader from "../Components/GroupChatsHeader";
-// import { FlatList } from "react-native-gesture-handler";
+import { APIEndPoints } from "../utils/ApiEndpoints";
 
-const GroupChatDetails = ({ route }) => {
+const ChatDetails = ({ route }) => {
+  const dispatch = useDispatch();
   const { updateMessage } = useUpdateMessageStatus();
-  const { socket, sendMessage, joinChat } = useSocket();
-  // const { item, loadingChats, isNewChat, userBDetails } = route.params;
-  const { chatId, loadingChats, isNewChat, userBDetails } = route.params;
+  const { item, loadingChats, isNewChat, userBDetails } = route.params;
 
+  const [socket, setSocket] = useState(null);
   // get userB || receiver status
-  // const { status, loading } = useGetUserStatus(userBId);
+  const { status, loading } = useGetUserStatus(userBId);
   const amount = useSelector((state) => state.amount.amount);
   const { userData } = useSelector((state) => state.auth);
   const userId = JSON.parse(userData)?.userId;
 
-  // const userBId = isNewChat
-  //   ? item?.id
-  //   : item?.participants?.find((item) => item !== userId);
+  const userBId = isNewChat
+    ? item?.id
+    : item?.participants?.find((item) => item !== userId);
 
   const scrollViewRef = useRef(null);
   const buttonSize = windowWidth <= 500 ? 40 : windowWidth * 0.1;
   const iconSize = buttonSize / 1.3;
 
-  const [createGroupMessage, { isLoading: creatingMessage }] =
-    useCreateGroupMessageMutation();
+  const [createMessage, { isLoading: creatingMessage }] =
+    useCreateMessageMutation();
 
   // isNewChat is true in UserCard in AllRegisteredUsersScreen
   // // isNewChat is false in Message component in Messages.jsx
-  // const { data: messagesFromChat, isLoading: loadingMessagesFromChat } =
-  //   useGetChatMessagesQuery({
-  //     senderId: userId,
-  //     receiverId: userBId,
-  //   });
-
-  console.log("groupChatData chatId ===>>> ", chatId);
-  console.log("groupChatData userId ===>>> ", userId);
-
-  const {
-    data: groupChat,
-    isLoading,
-    isError,
-  } = useGetGroupChatQuery({ chatId, userId });
-
-  const groupChatData = groupChat?.data;
-
-  console.log("groupChatData at group chat details ===>>> ", groupChatData);
+  const { data: messagesFromChat, isLoading: loadingMessagesFromChat } =
+    useGetChatMessagesQuery({
+      senderId: userId,
+      receiverId: userBId,
+    });
 
   const [visible, setVisible] = React.useState(false);
   const [selectedEmoji, setSelectedEmoji] = useState("");
   const [textMessage, setTextMessage] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
   const [messagesToDelete, setMessagesToDelete] = useState([]);
+  const [chatId, setChatId] = useState(item?.chatId || "");
+  const [flexToggle, setFlexToggle] = useState(false);
+  const [loadingInitialChatMessages, setLoadingInitialChatMessages] =
+    useState(false);
+  const [behaviour, setBehaviour] = useState("height");
 
   const toast = () => {
     Toast.show({
@@ -87,23 +81,22 @@ const GroupChatDetails = ({ route }) => {
   };
 
   const handleSendMessage = async () => {
-    if (!userId || !chatId) {
-      Alert.alert("", "User ID or Chat ID is missing");
-      return;
-    }
+    // 1. Pre-checks
+    if (!userId || !userBId || !textMessage.trim()) return;
 
-    if (!textMessage.trim()) return;
-
-    // 1. Create temporary message (optimistic UI)
+    // 2. Create a temporary message (optimistic UI)
     const tempId = `temp-${Date.now()}`;
+
+    const newTextMessage = textMessage;
+    setTextMessage("");
+
     const tempMessage = {
       id: tempId,
-      chatId: chatId,
-      groupName: groupChatData.groupName,
-      participants: groupChatData.participants,
-      senderId: userId,
-      content: textMessage,
+      content: newTextMessage,
+      messageType: "text",
       status: "SENDING",
+      senderId: userId,
+      receiverId: userBId,
       createdAt: {
         _seconds: Math.floor(Date.now() / 1000),
         _nanoseconds: 0,
@@ -111,64 +104,42 @@ const GroupChatDetails = ({ route }) => {
       updatedAt: null,
     };
 
-    // 2. Update UI immediately
+    // 3. Update UI immediately
     setChatMessages((prev) => [...prev, tempMessage]);
-    setTextMessage("");
 
-    // 3. Send via WebSocket
+    // 4. Send via WebSocket FIRST
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(
         JSON.stringify({
-          type: "NEW_GROUP_MESSAGE",
-          chatId,
-          message: tempMessage,
-          clientTempId: tempId, // for reconciliation
+          ...tempMessage,
+          clientTempId: tempId, // helps server/client reconcile later
         })
       );
     }
 
     try {
-      // 4. Persist to database
-
-      // {
-      //   chatId: chatId,
-      //   groupName: groupChatData.groupName,
-      //   participants: groupChatData.participants,
-      //   senderId: userId,
-      //   content: tempMessage.content,
-      //   status: "SENT",
-      //   messageType: "text",
-      // }
-      const body = {
-        creatorId: groupChatData?.messages[0].senderId,
+      // 5. Persist to database
+      const response = await createMessage({
         senderId: userId,
-        content: tempMessage.content,
-        groupName: groupChatData.groupName,
-        participants: groupChatData.participants,
+        receiverId: userBId,
+        // content: tempMessage.content,
+        content: newTextMessage,
         status: "SENT",
-        groupAvatar: groupChatData.groupAvatar,
-        file: "",
-      };
-      const response = await createGroupMessage(body);
-
-      console.log("send message response ===>>> ", response);
+        messageType: "text",
+      });
 
       const savedMessage = response?.data?.data?.message;
 
       if (savedMessage) {
-        // 5. Replace temp message with DB message
+        // 6. Replace temp message with DB message
         setChatMessages((prev) =>
           prev.map((msg) => (msg.id === tempId ? savedMessage : msg))
         );
       }
-
-      if (response?.data?.data?.chat?.chatId) {
-        // setChatId(response.data.data.chat.chatId);
-      }
     } catch (error) {
-      console.error("Failed to send group message:", error);
+      console.error("Failed to send message:", error);
 
-      // 6. Mark temp message as failed
+      // 7. Mark message as failed
       setChatMessages((prev) =>
         prev.map((msg) =>
           msg.id === tempId ? { ...msg, status: "FAILED" } : msg
@@ -177,39 +148,62 @@ const GroupChatDetails = ({ route }) => {
     }
   };
 
+  const scrollToBottom = () => {
+    if (scrollViewRef?.current) {
+      scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+  };
+
+  // set chat messages from messagesFromChat
   // useEffect(() => {
-  //   if (item) {
-  //     setChatId(item.chatId);
+  //   if (messagesFromChat?.data?.length > 0) {
+  //     setChatMessages(messagesFromChat.data);
   //   }
-  // }, []);
-
-  // useEffect(() => {
-  //   if (!userId || !chatId) return;
-
-  //   const unsubscribe = firestore()
-  //     .collection("groups")
-  //     .doc(chatId)
-  //     .collection("messages")
-  //     .orderBy("createdAt", "asc") // use 'desc' for latest first
-  //     .onSnapshot((querySnapshot) => {
-  //       const messages = [];
-
-  //       querySnapshot.forEach((doc) => {
-  //         messages.push({ id: doc.id, ...doc.data() });
-  //       });
-
-  //       setChatMessages(messages);
-  //       dispatch(setRefetchChat(true));
-  //     });
-
-  //   return () => unsubscribe();
-  // }, [userId, chatId]);
+  // }, [messagesFromChat]);
 
   useEffect(() => {
-    if (groupChatData?.messages) {
-      setChatMessages(groupChatData?.messages);
+    const ws = new WebSocket(APIEndPoints.SOCKET_URL);
+
+    ws.onopen = () => {
+      console.log("Connected to WebSocket server");
+      ws.send(
+        JSON.stringify({
+          type: "REGISTER",
+          userId: userId,
+        })
+      );
+    };
+
+    // ws.onmessage = (event) => {
+    //   console.log("Message:", event.data);
+    //   setChatMessages((prev) => [...prev, event.data]);
+    // };
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "NEW_MESSAGE") {
+        setChatMessages((prev) => [...prev, data.message]);
+      }
+    };
+
+    ws.onerror = (error) => {};
+
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+    };
+
+    setSocket(ws);
+
+    return () => ws.close();
+  }, []);
+
+  useEffect(() => {
+    if (item?.messages?.length > 0) {
+      setLoadingInitialChatMessages(true);
+      setChatMessages(item?.messages);
+      setLoadingInitialChatMessages(false);
     }
-  }, [groupChatData?.messages]);
+  }, [item?.messages]);
 
   // update message status to delivered when the chat details screen is opened
   useEffect(() => {
@@ -226,40 +220,50 @@ const GroupChatDetails = ({ route }) => {
     updateMessageStatus();
   }, [userId, chatId, chatMessages]);
 
-  // socket joins chat
   useEffect(() => {
     if (!chatId || !userId) return;
 
-    joinChat(chatId);
-  }, [chatId, userId]);
+    const unsubscribe = firestore()
+      .collection("chats")
+      .doc(chatId)
+      .collection("messages")
+      .where("receiverId", "==", userId)
+      .where("status", "==", "SENT")
+      .onSnapshot((snapshot) => {
+        if (!snapshot.empty) {
+          snapshot.forEach((docSnap) => {
+            docSnap.ref.update({ status: "DELIVERED", updatedAt: Date.now() });
+          });
+        }
+      });
 
-  // socket listens to incoming message
-  useEffect(() => {
-    if (!socket) return;
+    return () => unsubscribe();
+  }, [chatId, userId, chatMessages]);
 
-    const onMessage = (event) => {
-      const data = JSON.parse(event.data);
+  // useEffect(() => {
+  //   const showListener = Keyboard.addListener("keyboardDidShow", () => {
+  //     setBehaviour("height");
+  //   });
+  //   const hideListener = Keyboard.addListener("keyboardDidHide", () => {
+  //     setBehaviour(undefined);
+  //   });
 
-      if (data.type === "NEW_GROUP_MESSAGE" && data.chatId === chatId) {
-        setChatMessages((prev) => [...prev, data.message]);
-      }
-    };
-
-    socket.addEventListener("message", onMessage);
-
-    return () => socket.removeEventListener("message", onMessage);
-  }, [socket, chatId]);
-
-  const scrollToBottom = () => {
-    if (scrollViewRef?.current) {
-      scrollViewRef.current.scrollToEnd({ animated: true });
-    }
-  };
+  //   return () => {
+  //     showListener.remove();
+  //     hideListener.remove();
+  //   };
+  // }, []);
 
   // scroll to bottom when the component mounts
   useEffect(() => {
     scrollToBottom();
   }, [chatMessages]);
+
+  useEffect(() => {
+    if (item) {
+      setChatId(item.chatId);
+    }
+  }, []);
 
   return (
     <SafeAreaView
@@ -278,38 +282,31 @@ const GroupChatDetails = ({ route }) => {
           chatId={chatId}
         />
       ) : (
-        <GroupChatHeader
-          chat={groupChatData?.chat}
+        <ChatHeader
+          chat={item}
           isNewChat={isNewChat}
-          isAdmin={groupChatData?.messages[0].senderId === userId}
           userBDetails={userBDetails}
-          isGroup={true}
         />
       )}
-      {/* <ImageBackground
+      <ImageBackground
         // source={require("../assets/background.jpg")}
         style={{
           flex: 1,
           // backgroundColor: "red",
         }}
-      > */}
-      <View
-        style={{
-          flex: 1,
-        }}
       >
         {/* {loadingMessagesFromChat ? (
-              <LoadingSpinner size={"small"} color={Colors.primaryColor} />
-            ) : ( */}
+            <LoadingSpinner size={"small"} color={Colors.primaryColor} />
+          ) : ( */}
 
-        {isLoading && (
+        {/* {loadingInitialChatMessages && (
           <View style={{ marginTop: 100 }}>
             <LoadingSpinner size={"small"} color={Colors.primaryColor} />
           </View>
-        )}
+        )} */}
 
         {/* chat date */}
-        {groupChatData?.time && (
+        {item?.time && (
           <Text
             style={{
               alignSelf: "center",
@@ -324,11 +321,11 @@ const GroupChatDetails = ({ route }) => {
               borderRadius: 20,
             }}
           >
-            {groupChatData?.time}
+            {item?.time}
           </Text>
         )}
         {/* <Text>{item?.chatId}</Text>
-                <Text>{chatId}</Text> */}
+              <Text>{chatId}</Text> */}
 
         <FlatList
           ref={scrollViewRef}
@@ -342,10 +339,18 @@ const GroupChatDetails = ({ route }) => {
               setMessagesToDelete={setMessagesToDelete}
             />
           )}
-          keyExtractor={(item) => item?.id.toString()}
+          keyExtractor={(item, index) =>
+            item?.id.toString() +
+            item?.createdAt?._seconds.toString() +
+            index.toString()
+          }
           contentContainerStyle={{}}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
+          initialNumToRender={15} // render first 15 instantly
+          maxToRenderPerBatch={10} // load in small batches
+          windowSize={10} // how many screens worth of rows to render
+          removeClippedSubviews={true} // recycle offscreen items
         />
 
         <KeyboardAvoidingView
@@ -417,9 +422,11 @@ const GroupChatDetails = ({ route }) => {
         </KeyboardAvoidingView>
         {/* </KeyboardAwareScrollView> */}
         {/* </KeyboardAvoidingView> */}
-        {/* </ImageBackground> */}
-      </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 };
-export default GroupChatDetails;
+
+export default ChatDetails;
+
+const styles = StyleSheet.create({});

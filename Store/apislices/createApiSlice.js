@@ -7,6 +7,14 @@ const baseQuery = fetchBaseQuery({ baseUrl: APIEndPoints.BASE_URL });
 
 export const apiSlice = createApi({
   baseQuery,
-  tagTypes: ["Application", "Chats", "Message", "Status", "User"],
+  tagTypes: [
+    "Application",
+    "Chats",
+    "Message",
+    "Status",
+    "User",
+    "GroupChats",
+    "GroupChat",
+  ],
   endpoints: (builder) => ({}),
 });

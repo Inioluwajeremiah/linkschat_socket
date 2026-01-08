@@ -1,20 +1,12 @@
-import { SafeAreaView, StyleSheet, Text, View } from "react-native";
-import Header from "../Components/Header";
+import { View, Text } from "react-native";
+import React from "react";
 
 const Profiles = () => {
   return (
-    <SafeAreaView
-      style={{
-        backgroundColor: "white",
-        flex: 1,
-      }}
-    >
-      <Header />
-      <Text>Profiles Screen</Text>
-    </SafeAreaView>
+    <View>
+      <Text>Profiles</Text>
+    </View>
   );
 };
 
 export default Profiles;
-
-const styles = StyleSheet.create({});

@@ -1,5 +1,8 @@
 import {
+  ActivityIndicator,
   Alert,
+  ImageBackground,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Text,
@@ -13,22 +16,25 @@ import ChatHeader from "../Components/ChatsHeader";
 import RenderChats from "../Components/RenderChat";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Toast from "react-native-toast-message";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import {
+  useCreateGroupMessageMutation,
+  useCreateMessageMutation,
+  useGetChatMessagesQuery,
+  useGetGroupChatQuery,
+} from "../Store/apislices/messageApiSlice";
 import { windowHeight, windowWidth } from "../utils/Dimensions";
 import { Colors } from "../utils/Colors";
+import firestore from "@react-native-firebase/firestore";
+import useGetUserStatus from "../hooks/useGetUserStatus";
 import DeleteMessageHeader from "../Components/DeleteMessageHeader";
 import useUpdateMessageStatus from "../hooks/useUpdateMessageStatus";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSocket } from "../socket/useSocket";
-import LoadingSpinner from "../Components/LoadingSpinner";
-import {
-  useCreateGroupMessageMutation,
-  useGetGroupChatQuery,
-} from "../Store/apislices/groupChatSlice";
-import GroupChatHeader from "../Components/GroupChatsHeader";
 // import { FlatList } from "react-native-gesture-handler";
 
 const GroupChatDetails = ({ route }) => {
+  const dispatch = useDispatch();
   const { updateMessage } = useUpdateMessageStatus();
   const { socket, sendMessage, joinChat } = useSocket();
   // const { item, loadingChats, isNewChat, userBDetails } = route.params;
@@ -59,16 +65,11 @@ const GroupChatDetails = ({ route }) => {
   //     receiverId: userBId,
   //   });
 
-  console.log("groupChatData chatId ===>>> ", chatId);
-  console.log("groupChatData userId ===>>> ", userId);
-
   const {
-    data: groupChat,
+    data: groupChatData,
     isLoading,
     isError,
-  } = useGetGroupChatQuery({ chatId, userId });
-
-  const groupChatData = groupChat?.data;
+  } = useGetGroupChatQuery(chatId);
 
   console.log("groupChatData at group chat details ===>>> ", groupChatData);
 
@@ -77,6 +78,11 @@ const GroupChatDetails = ({ route }) => {
   const [textMessage, setTextMessage] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
   const [messagesToDelete, setMessagesToDelete] = useState([]);
+  // const [chatId, setChatId] = useState(item?.chatId || "");
+  const [flexToggle, setFlexToggle] = useState(false);
+  const [loadingInitialChatMessages, setLoadingInitialChatMessages] =
+    useState(false);
+  const [behaviour, setBehaviour] = useState("height");
 
   const toast = () => {
     Toast.show({
@@ -99,8 +105,8 @@ const GroupChatDetails = ({ route }) => {
     const tempMessage = {
       id: tempId,
       chatId: chatId,
-      groupName: groupChatData.groupName,
-      participants: groupChatData.participants,
+      groupName: item.groupName,
+      participants: item.participants,
       senderId: userId,
       content: textMessage,
       status: "SENDING",
@@ -129,29 +135,15 @@ const GroupChatDetails = ({ route }) => {
 
     try {
       // 4. Persist to database
-
-      // {
-      //   chatId: chatId,
-      //   groupName: groupChatData.groupName,
-      //   participants: groupChatData.participants,
-      //   senderId: userId,
-      //   content: tempMessage.content,
-      //   status: "SENT",
-      //   messageType: "text",
-      // }
-      const body = {
-        creatorId: groupChatData?.messages[0].senderId,
+      const response = await createGroupMessage({
+        chatId: chatId,
+        groupName: item.groupName,
+        participants: item.participants,
         senderId: userId,
         content: tempMessage.content,
-        groupName: groupChatData.groupName,
-        participants: groupChatData.participants,
         status: "SENT",
-        groupAvatar: groupChatData.groupAvatar,
-        file: "",
-      };
-      const response = await createGroupMessage(body);
-
-      console.log("send message response ===>>> ", response);
+        messageType: "text",
+      });
 
       const savedMessage = response?.data?.data?.message;
 
@@ -163,7 +155,7 @@ const GroupChatDetails = ({ route }) => {
       }
 
       if (response?.data?.data?.chat?.chatId) {
-        // setChatId(response.data.data.chat.chatId);
+        setChatId(response.data.data.chat.chatId);
       }
     } catch (error) {
       console.error("Failed to send group message:", error);
@@ -205,11 +197,13 @@ const GroupChatDetails = ({ route }) => {
   //   return () => unsubscribe();
   // }, [userId, chatId]);
 
-  useEffect(() => {
-    if (groupChatData?.messages) {
-      setChatMessages(groupChatData?.messages);
-    }
-  }, [groupChatData?.messages]);
+  // useEffect(() => {
+  //   if (item?.messages?.length > 0) {
+  //     setLoadingInitialChatMessages(true);
+  //     setChatMessages(item?.messages);
+  //     setLoadingInitialChatMessages(false);
+  //   }
+  // }, [item?.messages]);
 
   // update message status to delivered when the chat details screen is opened
   useEffect(() => {
@@ -278,10 +272,9 @@ const GroupChatDetails = ({ route }) => {
           chatId={chatId}
         />
       ) : (
-        <GroupChatHeader
-          chat={groupChatData?.chat}
+        <ChatHeader
+          chat={groupChatData}
           isNewChat={isNewChat}
-          isAdmin={groupChatData?.messages[0].senderId === userId}
           userBDetails={userBDetails}
           isGroup={true}
         />
@@ -302,14 +295,14 @@ const GroupChatDetails = ({ route }) => {
               <LoadingSpinner size={"small"} color={Colors.primaryColor} />
             ) : ( */}
 
-        {isLoading && (
-          <View style={{ marginTop: 100 }}>
-            <LoadingSpinner size={"small"} color={Colors.primaryColor} />
-          </View>
-        )}
+        {/* {loadingInitialChatMessages && (
+            <View style={{ marginTop: 100 }}>
+              <LoadingSpinner size={"small"} color={Colors.primaryColor} />
+            </View>
+          )} */}
 
         {/* chat date */}
-        {groupChatData?.time && (
+        {item?.time && (
           <Text
             style={{
               alignSelf: "center",
@@ -324,7 +317,7 @@ const GroupChatDetails = ({ route }) => {
               borderRadius: 20,
             }}
           >
-            {groupChatData?.time}
+            {item?.time}
           </Text>
         )}
         {/* <Text>{item?.chatId}</Text>

@@ -15,10 +15,13 @@ export const useUploadImage = () => {
 
   const pickImage = async () => {
     try {
-      const bucketName = "linkschat-s3-bucket";
+      const bucketName = "linkschat-bucket";
       AWS.config.update({
-        accessKeyId: "AKIARJ62HMLSIOYFFT5I",
-        secretAccessKey: "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",
+        // accessKeyId: "AKIARJ62HMLSIOYFFT5I",
+        // secretAccessKey: "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",
+        accessKeyId: process.env.EXPO_PUBLIC_ACCESS_KEY,
+        secretAccessKey: process.env.EXPO_PUBLIC_SECRET_KEY,
+
         region: "eu-north-1",
       });
       const s3 = new AWS.S3();
@@ -55,6 +58,7 @@ export const useUploadImage = () => {
               Bucket: bucketName,
               Key: fileName,
               Body: fileData,
+              ContentType: "image/jpeg",
             })
             .promise();
         };

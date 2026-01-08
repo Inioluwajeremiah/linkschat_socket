@@ -6,23 +6,23 @@ import {
   ActivityIndicator,
 } from "react-native";
 import IonIcons from "@expo/vector-icons/Ionicons";
-import { useDeleteChatMutation } from "../Store/apislices/chatApiSlice";
 import { Colors } from "../utils/Colors";
+import { useDeleteGroupMutation } from "../Store/apislices/groupChatSlice";
 
-const DeleteChatHeader = ({
+const DeleteGroupChatHeader = ({
   noOfChatsSelected,
   chatsToDelete,
   setChatsToDelete,
   userId,
 }) => {
-  const [deleteChat, { isLoading: deletingChat }] = useDeleteChatMutation();
+  const [deleteGroup, { isLoading: deletingChat }] = useDeleteGroupMutation();
 
   const handleDeleteChatHeader = async () => {
     try {
-      const response = await deleteChat({
+      const response = await deleteGroup({
         // chatIds: chatsToDelete,
         chatId: chatsToDelete[0],
-        senderId: userId,
+        requesterId: userId,
       });
 
       // console.log("handleDeleteChatHeader response ===>> ", response);
@@ -83,4 +83,4 @@ const DeleteChatHeader = ({
   );
 };
 
-export default DeleteChatHeader;
+export default DeleteGroupChatHeader;

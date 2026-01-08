@@ -1,4 +1,5 @@
 import {
+  Image,
   TextInput,
   Text,
   View,
@@ -6,61 +7,50 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Entypo from "@expo/vector-icons/Entypo";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import AllRegisteredUsersScreen from "./AllRegisteredUsersScreen";
-
 import { useSelector } from "react-redux";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useNavigation } from "@react-navigation/native";
 import { useUploadImage } from "../hooks/uploadImageHookAws";
-import { Image } from "react-native";
-import { useCreateGroupMessageMutation } from "../Store/apislices/groupChatSlice";
+import { useUpdateGroupMutation } from "../Store/apislices/groupChatSlice";
 
-const AddNewGroup = () => {
+const EditGroupScreen = ({ route }) => {
   const navigation = useNavigation();
+  const { chat } = route.params;
   const { userData } = useSelector((state) => state.auth);
   const userId = JSON.parse(userData)?.userId;
+
   const [showModal, setShowModal] = useState(false);
-  const [selectedMembers, setSelectedMembers] = useState([]);
-  const [groupName, setGroupName] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState(
+    chat.participants || []
+  );
+  const [groupName, setGroupName] = useState(chat.groupName || "");
+  const [imageUrl, setImageUrl] = useState("");
 
   const { pickImage, loadingImageUpload, uploadImageUrl } = useUploadImage();
-  const [
-    createGroupMessage,
-    { isLoading: creatingGroup, error: errorCreatingGroup },
-  ] = useCreateGroupMessageMutation();
+  const [updateGroup, { isLoading: creatingGroup, error: errorUpdatingGroup }] =
+    useUpdateGroupMutation();
 
-  const handleCreateGroup = async () => {
-    // const body = {
-    //   chatId: userId,
-    //   groupName: groupName,
-    //   participants: selectedMembers,
-    //   groupAvatar: uploadImageUrl,
-    //   senderId: userId,
-    //   content: `Hello and welcome to ${groupName}! We're thrilled to have you on board.`,
-    //   status: "SENT",
-    // };
+  console.log("EditGroupScreen chat ===>> ", chat);
 
+  const handleupdateGroup = async () => {
     const body = {
-      creatorId: userId,
+      chatId: chat?.chatId,
       groupName: groupName,
-      participants: selectedMembers,
+      addParticipants: selectedMembers,
       groupAvatar: uploadImageUrl,
-      senderId: userId,
-      content: `Hello and welcome to ${groupName}! We're thrilled to have you on board.`,
-      status: "SENT",
-      file: null,
+      requesterId: userId,
+      removeParticipants: [],
     };
-    console.log("creare group body ==>> ", body);
-
     try {
-      const response = await createGroupMessage(body);
+      const response = await updateGroup(body);
 
-      console.log("createGroup response ==>> ", response);
+      console.log("handleupdateGroup ===>>> ", response);
 
       if (response?.error) {
       }
@@ -68,13 +58,6 @@ const AddNewGroup = () => {
       if (response?.data) {
         Alert.alert("", response?.data?.message);
         navigation.goBack();
-        // navigation.navigate("MainScreen", {
-        //   screen: "Home",
-        //   params: {
-        //     screen: "Tabs",
-        //     params: { screen: "Group Chat" },
-        //   },
-        // });
       }
     } catch (error) {
       Alert.alert("", error.message);
@@ -91,6 +74,18 @@ const AddNewGroup = () => {
       />
     );
   }
+
+  useEffect(() => {
+    if (chat.groupAvatar) {
+      setImageUrl(chat.groupAvatar);
+    }
+  }, [chat]);
+
+  useEffect(() => {
+    if (uploadImageUrl) {
+      setImageUrl(uploadImageUrl);
+    }
+  }, [uploadImageUrl]);
 
   return (
     <SafeAreaView
@@ -124,21 +119,20 @@ const AddNewGroup = () => {
               flex: 1,
             }}
           >
-            Add New Group
+            {"Edit Group Name"}
           </Text>
         </View>
 
         <View style={{ position: "relative" }}>
-          {uploadImageUrl ? (
+          {imageUrl ? (
             <Image
-              source={{ uri: uploadImageUrl }}
+              source={{ uri: imageUrl }}
               style={{
                 width: 130,
                 height: 130,
                 borderWidth: 1,
                 borderRadius: 65,
                 borderColor: "#ccc",
-
                 alignSelf: "center",
                 justifyContent: "center",
                 alignItems: "center",
@@ -154,7 +148,6 @@ const AddNewGroup = () => {
                 borderWidth: 1,
                 borderRadius: 65,
                 borderColor: "#ccc",
-
                 alignSelf: "center",
                 justifyContent: "center",
                 alignItems: "center",
@@ -250,7 +243,7 @@ const AddNewGroup = () => {
           {/* create group button */}
           <TouchableOpacity
             disabled={selectedMembers.length > 0 ? false : true}
-            onPress={handleCreateGroup}
+            onPress={handleupdateGroup}
             style={{
               backgroundColor: selectedMembers.length > 0 ? "#5bbbdf" : "#aaa",
               padding: 12,
@@ -277,7 +270,7 @@ const AddNewGroup = () => {
                   fontFamily: "regular",
                 }}
               >
-                Create Group
+                Update Group
               </Text>
             )}
           </TouchableOpacity>
@@ -287,4 +280,4 @@ const AddNewGroup = () => {
   );
 };
 
-export default AddNewGroup;
+export default EditGroupScreen;

@@ -36,8 +36,6 @@ const Messages = ({
     await refetch();
   };
 
-  console.log("userChats at Messages ===>> ", userChats);
-
   if (loadingChats || loadingAllUsersData) {
     return (
       <View style={{ flex: 1, paddingHorizontal: 20 }}>

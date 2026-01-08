@@ -21,17 +21,7 @@ export const chatApiSlice = apiSlice.injectEndpoints({
       providesTags: ["Chats"],
       keepUnusedDataFor: 86400,
     }),
-    getGroupChats: builder.query({
-      query: ({ userId }) => ({
-        url: APIEndPoints.GROUP_CHAT_URL,
-        params: {
-          userId: userId,
-        },
-      }),
 
-      providesTags: ["Chats"],
-      keepUnusedDataFor: 86400,
-    }),
     getChat: builder.query({
       query: ({ userId, user2Id }) => ({
         url: APIEndPoints.CHAT_URL + "/" + userId + "/" + user2Id,
@@ -52,7 +42,6 @@ export const chatApiSlice = apiSlice.injectEndpoints({
 export const {
   useCreateChatMutation,
   useGetChatsQuery,
-  useGetGroupChatsQuery,
   useGetChatQuery,
   useDeleteChatMutation,
 } = chatApiSlice;

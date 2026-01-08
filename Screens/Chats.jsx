@@ -29,7 +29,6 @@ const Chats = () => {
     userId,
   });
 
-  console.log("userchats at chat ===>>> ", userChats);
   // refresh chats
   const handleRefresh = async () => {
     try {

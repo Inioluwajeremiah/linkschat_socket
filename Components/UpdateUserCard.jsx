@@ -34,8 +34,6 @@ const UpdateUserCard = ({
 
   const statusIds = item?.data?.map((status) => status.id);
 
-  console.log("status ids ===>>> ", statusIds);
-
   const statusCount = item?.data?.length || 1;
   const dashGap = 5;
   const dashLength = (CIRCUMFERENCE - dashGap * statusCount) / statusCount;
@@ -57,6 +55,7 @@ const UpdateUserCard = ({
                 filterCurrentUserStatus: filterCurrentUserStatus,
                 filterByOtherUsersStatus: filterByOtherUsersStatus,
                 fromCurrentUserStatus: fromCurrentUserStatus,
+                statusOwnerId: statusOwnerId,
               })
       } // Navigate to view update screen
     >

@@ -13,7 +13,9 @@
     "iosDev": "eas build --profile development --platform ios",
     "iosPreview": "eas build --profile preview --platform ios",
     "iosProduction": "eas build --profile production --platform ios",
-    "bareAndroidReview": "cd android && ./gradlew assembleRelease"
+    "bareAndroidReview": "cd android && ./gradlew assembleRelease",
+    "bareAndroidProduction": "cd android && ./gradlew bundleRelease",
+    "cleanGradle": "cd android && ./gradlew clean"
   },
   "dependencies": {
     "@config-plugins/react-native-callkeep": "^9.0.0",
@@ -57,6 +59,7 @@
     "react-native-floating-action": "^1.22.0",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-incall-manager": "^4.2.1",
+    "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-keyboard-controller": "^1.17.5",
     "react-native-pager-view": "6.7.1",
     "react-native-progress": "^5.0.1",

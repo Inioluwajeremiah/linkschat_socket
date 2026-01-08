@@ -8,7 +8,6 @@ export default function Updates() {
   const { userData } = useSelector((state) => state.auth);
   const { viewedStatus } = useSelector((state) => state.viewedStatus);
 
-  console.log("viewedStatus at updates ===>>> ", viewedStatus);
   const userId = JSON.parse(userData)?.userId;
 
   const { data: allStatusUpdate, isLoading: gettingAllStatus } =

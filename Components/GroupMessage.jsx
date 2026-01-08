@@ -21,8 +21,6 @@ const GroupMessage = ({
   const { userData } = useSelector((state) => state.auth);
   const userId = JSON.parse(userData)?.userId;
 
-  console.log("item at groupmessage ===>>> ", item);
-
   const userBId = item?.participants?.find((item) => item !== userId);
 
   const { data: userBDetails, isLoading: loadingUserDetails } =
@@ -70,7 +68,8 @@ const GroupMessage = ({
           : () =>
               navigation.navigate("GroupChatDetails", {
                 loadingChats,
-                item: item,
+                // item: item,
+                chatId: item?.chatId,
                 isNewChat: false,
                 userBDetails: userBDetails?.data,
               })

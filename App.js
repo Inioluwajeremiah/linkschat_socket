@@ -14,6 +14,7 @@ import { PersistGate } from "redux-persist/integration/react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import useFCMNotification from "./hooks/useFCMNotification";
+import { SocketProvider } from "./socket/SocketProvider";
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -38,18 +39,20 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      {/* <SafeAreaP style={{ flex: 1 }} edges={["top", "left", "right"]}> */}
-      <NavigationContainer ref={navigationRef}>
-        <KeyboardProvider>
-          <Provider store={store}>
-            <PersistGate persistor={persistor}>
-              {isShown ? <Splashscreen /> : <AuthScreen />}
-              <StatusBar style="auto" backgroundColor="#5bbbdf" />
-            </PersistGate>
-          </Provider>
-        </KeyboardProvider>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <Provider store={store}>
+      <PersistGate persistor={persistor}>
+        <SafeAreaProvider>
+          {/* <SafeAreaP style={{ flex: 1 }} edges={["top", "left", "right"]}> */}
+          <SocketProvider>
+            <NavigationContainer ref={navigationRef}>
+              <KeyboardProvider>
+                {isShown ? <Splashscreen /> : <AuthScreen />}
+                <StatusBar style="auto" backgroundColor="#5bbbdf" />
+              </KeyboardProvider>
+            </NavigationContainer>
+          </SocketProvider>
+        </SafeAreaProvider>
+      </PersistGate>
+    </Provider>
   );
 }

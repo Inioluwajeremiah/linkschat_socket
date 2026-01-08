@@ -190,7 +190,7 @@ const Header = ({ notDashboard, setShow }) => {
               paddingVertical: 5,
               gap: 10,
             }}
-            onPress={() => navigation.navigate("New Group")}
+            onPress={() => navigation.navigate("AddNewGroup")}
           >
             <Group name="users" size={14} />
             <Text
@@ -203,7 +203,7 @@ const Header = ({ notDashboard, setShow }) => {
               New Group
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -267,7 +267,7 @@ const Header = ({ notDashboard, setShow }) => {
             >
               invite a friend
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       ) : null}
 

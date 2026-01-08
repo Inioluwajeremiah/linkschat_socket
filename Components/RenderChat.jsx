@@ -2,9 +2,7 @@ import { TouchableOpacity, Text, View } from "react-native";
 import Octicons from "@expo/vector-icons/Octicons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Mark from "react-native-vector-icons/Ionicons";
-import { useSelector } from "react-redux";
 import { timeAgo } from "../utils/TimeUtils";
-import { Colors } from "../utils/Colors";
 
 const RenderChats = ({
   item,
@@ -41,6 +39,10 @@ const RenderChats = ({
         backgroundColor: messagesToDelete.includes(item?.id)
           ? "rgba(91, 187, 223, 0.5)"
           : "transparent",
+        paddingHorizontal:
+          messagesToDelete.includes(item?.id) && item?.senderId === userId
+            ? 10
+            : 0,
       }}
     >
       <View
@@ -82,7 +84,7 @@ const RenderChats = ({
               gap: 5,
             }}
           >
-            {item.star ? (
+            {item?.star ? (
               <Octicons name="star-fill" size={14} color="white" />
             ) : null}
             <Text
@@ -90,7 +92,7 @@ const RenderChats = ({
                 fontFamily: "regular",
               }}
             >
-              {timeAgo(item?.createdAt?.seconds * 1000)}
+              {timeAgo(item?.createdAt?._seconds * 1000)}
             </Text>
             {item?.senderId === userId && item?.status === "READ" ? (
               <Mark name="checkmark-done-sharp" color={"white"} size={20} />

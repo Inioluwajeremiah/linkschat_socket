@@ -1,9 +1,9 @@
 export const APIEndPoints = {
   SOCKET_URL: "https://linkschat-new-repository.onrender.com",
   BASE_URL: "https://linkschat-new-repository.onrender.com/api",
-  USER_URL: "/user",
+  USER_URL: "/users",
   CHAT_URL: "/chats",
-  GROUP_CHAT_URL: "/group-chat",
+  GROUP_CHAT_URL: "/group-chats",
   MESSAGE_URL: "/message",
   GROUP_MESSAGE_URL: "/message/group",
   GROUP_URL: "/group",

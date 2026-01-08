@@ -16,7 +16,6 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
-import { Colors } from "../utils/Colors";
 import { windowWidth, windowHeight } from "../utils/Dimensions";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
@@ -25,6 +24,7 @@ import * as Progress from "react-native-progress";
 import { useDeleteStatusMutation } from "../Store/apislices/statusApiSlice";
 import LoadingSpinner from "../Components/LoadingSpinner";
 import { addViewedStatus } from "../Store/slices/statusSlice";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 const optionMenuItem = [
   {
@@ -53,6 +53,7 @@ const ViewUpdateScreen = ({ route }) => {
     filterByOtherUsersStatus,
     statusIndex,
     fromCurrentUserStatus,
+    statusOwnerId,
   } = route.params;
 
   const [currentStatusIndex, setCurrentStatusIndex] = useState(
@@ -91,6 +92,7 @@ const ViewUpdateScreen = ({ route }) => {
   };
 
   const goToNextStatus = () => {
+    setReplyStatusText("");
     if (activeIndex < statusOwnerData?.length - 1) {
       setActiveIndex((prev) => prev + 1);
       dispatch(addViewedStatus(statusOwnerData[activeIndex]?.id));
@@ -188,6 +190,7 @@ const ViewUpdateScreen = ({ route }) => {
   // };
 
   const handlePrevious = () => {
+    setReplyStatusText("");
     if (activeIndex > 0) {
       setActiveIndex((prev) => prev - 1);
       dispatch(addViewedStatus(statusOwnerData[activeIndex]?.id));
@@ -201,7 +204,6 @@ const ViewUpdateScreen = ({ route }) => {
         filterCurrentUserStatus?.length > 0 &&
         currentStatusIndex === filterByOtherUsersStatus?.length - 1
       ) {
-        alert("left level 3 pressed");
         setCurrentStatusIndex(
           filterCurrentUserStatus[filterCurrentUserStatus?.length - 1]
         );
@@ -219,7 +221,6 @@ const ViewUpdateScreen = ({ route }) => {
         activeUserId !== userId &&
         currentStatusIndex < filterByOtherUsersStatus?.length - 1
       ) {
-        alert("prev level 4");
         setCurrentStatusIndex((prev) => prev - 1);
         setCurrentStatusItem(
           filterByOtherUsersStatus?.[currentStatusIndex - 1]
@@ -237,7 +238,6 @@ const ViewUpdateScreen = ({ route }) => {
         activeUserId !== userId &&
         currentStatusIndex === filterByOtherUsersStatus?.length - 1
       ) {
-        alert("prev level 5");
         setCurrentStatusIndex((prev) => prev - 1);
         setCurrentStatusItem(
           filterByOtherUsersStatus?.[currentStatusIndex - 1]
@@ -280,6 +280,7 @@ const ViewUpdateScreen = ({ route }) => {
       // }
     }
   };
+
   const handleDelete = async (itemId) => {
     try {
       const response = await deleteStatus({
@@ -350,6 +351,47 @@ const ViewUpdateScreen = ({ route }) => {
   //   }
   // }, [activeIndex, statusOwnerData]);
 
+  const handleSendMessage = async () => {
+    if (!replystatusText.trim()) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const content = replystatusText;
+
+    const tempMessage = {
+      id: tempId,
+      content,
+      messageType: "text",
+      status: "SENDING",
+      senderId: userId,
+      receiverId: statusOwnerId,
+      createdAt: { _seconds: Math.floor(Date.now() / 1000) },
+    };
+
+    setReplyStatusText("");
+
+    socket?.send?.(
+      JSON.stringify({
+        type: "NEW_MESSAGE",
+        ...tempMessage,
+        clientTempId: tempId,
+      })
+    );
+
+    try {
+      const res = await createMessage({
+        senderId: userId,
+        receiverId: statusOwnerId,
+        content,
+        status: "SENT",
+        messageType: "text",
+      });
+
+      c;
+    } catch (error) {
+      console.error("Error occurred:", error.message);
+    }
+  };
+
   useEffect(() => {
     setTimeLeft(0);
 
@@ -370,43 +412,33 @@ const ViewUpdateScreen = ({ route }) => {
     <SafeAreaView
       style={{
         flex: 1,
-        backgroundColor: statusOwnerData?.[activeIndex]?.backgroundColor
-          ? statusOwnerData?.[activeIndex]?.backgroundColor
-          : statusOwnerData?.[activeIndex]?.type !== "text"
-          ? "#000"
-          : backgroundColor,
+        backgroundColor:
+          statusOwnerData?.[activeIndex]?.backgroundColor ??
+          (statusOwnerData?.[activeIndex]?.type !== "text"
+            ? "#000"
+            : backgroundColor),
       }}
     >
       <Toast />
-      <KeyboardAvoidingView
-        keyboardVerticalOffset={20}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1, position: "relative" }}
-      >
-        {/* updates/status indicator */}
 
-        {/* <Text style={{ color: "white" }}> {formatTime(timeLeft)}</Text> */}
+      {/* ================= TOP AREA ================= */}
+      <View style={{ flex: 1 }}>
+        {/* Progress bars */}
         <View
           style={{
-            width: windowWidth,
-            maxWidth: windowWidth,
             flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            marginTop: 10,
+            paddingHorizontal: 8,
+            paddingTop: 10,
           }}
         >
           {statusOwnerData?.map((item, index) => (
             <Progress.Bar
-              key={item?.id + index.toString()}
+              key={item?.id + index}
               progress={index === activeIndex ? (timeLeft * 10) / 100 : 0}
-              // : index > activeIndex
-              // ? 1
-              width={updateWidth - 16}
+              width={(windowWidth - 32) / statusOwnerData.length}
               height={2}
               borderWidth={0}
-              color={"#fff"}
+              color="#fff"
               unfilledColor={
                 activeIndex > index ? "#fff" : "rgba(255,255,255,0.3)"
               }
@@ -415,129 +447,57 @@ const ViewUpdateScreen = ({ route }) => {
           ))}
         </View>
 
-        {/* profile image and options*/}
+        {/* Header */}
         <View
           style={{
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            padding: 20,
+            padding: 16,
           }}
         >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              // marginRight:20
-            }}
-          >
-            {/* back arrow */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate("Home")}
-              style={{
-                width: iconSize,
-                height: iconSize,
-                justifyContent: "center",
-                alignItems: "center",
-
-                elevation: 5,
-              }}
-            >
-              <Ionicons name="arrow-back-outline" size={34} color="white" />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back-outline" size={28} color="white" />
             </TouchableOpacity>
 
-            {/* middle view - user details */}
-            <View
+            <Image
+              source={{ uri: statusOwnerData?.imageUrl }}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-
-                gap: 10,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: "#fff",
               }}
-            >
-              <Image
-                source={{ uri: statusOwnerData?.imageUrl }}
-                style={{
-                  width: imageSize,
-                  height: imageSize,
-                  borderRadius: imageSize / 2,
-                  borderColor: "white",
-                  borderWidth: 1,
-                }}
-              />
-
-              <Text
-                style={{
-                  fontFamily: "bold",
-                  fontWeight: "bold",
-                  color: "white",
-                }}
-                numberOfLines={1}
-              >
-                {userDetails?.data?.userName}
-              </Text>
-            </View>
-          </View>
-          {/* options menu */}
-          <TouchableOpacity
-            onPress={ToggleMenu}
-            style={{
-              width: iconSize,
-              height: iconSize,
-              borderColor: "#fff",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Ionicons
-              name="ellipsis-vertical-outline"
-              size={24}
-              color="white"
             />
-          </TouchableOpacity>
+
+            <Text
+              numberOfLines={1}
+              style={{ color: "#fff", fontWeight: "bold" }}
+            >
+              {userDetails?.data?.userName}
+            </Text>
+          </View>
         </View>
 
-        {/* show content - image or text */}
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: statusOwnerData?.[activeIndex]?.backgroundColor,
-          }}
-        >
-          {/* display text */}
-          {typeof statusOwnerData?.[activeIndex]?.text === "string" &&
-            statusOwnerData?.[activeIndex]?.type === "text" && (
+        {/* ================= CONTENT ================= */}
+        <View style={{ flex: 1 }}>
+          {/* TEXT STATUS */}
+          {statusOwnerData?.[activeIndex]?.type === "text" && (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                padding: 20,
+              }}
+            >
               <Text
                 style={{
-                  flex: 1,
                   color: "#fff",
-                  paddingHorizontal: "20",
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: "600",
-                }}
-              >
-                {statusOwnerData?.[activeIndex]?.text}
-              </Text>
-            )}
-          {/* display image */}
-          {statusOwnerData?.[activeIndex]?.type === "image" && (
-            <View style={{ flex: 1 }}>
-              <Image
-                style={{
-                  width: windowWidth,
-                  height: windowHeight * 0.6,
-                  objectFit: "contain",
-                }}
-                source={{ uri: statusOwnerData?.[activeIndex]?.imageUrl }}
-              />
-              <Text
-                style={{
-                  backgroundColor: "#000",
-                  color: "#fff",
-                  fontSize: 14,
-                  fontFamily: "regular",
-                  paddingHorizontal: 20,
                   textAlign: "center",
                 }}
               >
@@ -546,101 +506,114 @@ const ViewUpdateScreen = ({ route }) => {
             </View>
           )}
 
-          {/* left and right navigation */}
+          {/* IMAGE STATUS */}
+          {statusOwnerData?.[activeIndex]?.type === "image" && (
+            <View style={{ flex: 1 }}>
+              <Image
+                source={{ uri: statusOwnerData?.[activeIndex]?.imageUrl }}
+                style={{
+                  width: windowWidth,
+                  height: windowHeight * 0.65,
+                }}
+                resizeMode="contain"
+              />
+
+              {!!statusOwnerData?.[activeIndex]?.text && (
+                <Text
+                  style={{
+                    color: "#fff",
+                    paddingHorizontal: 20,
+                    paddingTop: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  {statusOwnerData?.[activeIndex]?.text}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Tap zones */}
           <View
             style={{
-              flex: 1,
-              flexDirection: "row",
               position: "absolute",
-              width: windowWidth,
-              height: windowHeight * 0.6,
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              flexDirection: "row",
             }}
           >
-            <Pressable
-              style={{
-                flex: 1,
-                borderWidth: 2,
-                borderColor: "#fff",
-              }}
-              onPress={handlePrevious}
-            />
-            <Pressable
-              style={{ flex: 1, borderColor: "#fff", borderWidth: 2 }}
-              onPress={handleNext}
-            />
+            <Pressable style={{ flex: 1 }} onPress={handlePrevious} />
+            <Pressable style={{ flex: 1 }} onPress={handleNext} />
           </View>
         </View>
+      </View>
 
-        {/* status update action area - textinput, send and like button  */}
-        <View
-          style={{
-            position: "relative",
-            flexDirection: "row",
-            backgroundColor: backgroundColor,
-          }}
+      {/* ================= REPLY BAR ================= */}
+      {statusOwnerId !== userId && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
         >
           <View
             style={{
-              backgroundColor: "rgba(0,0,0,0.5)",
-              flexDirection: "row",
-              justifyContent: "center",
-              alignItems: "center",
-              bottom: 10,
-              height: windowHeight * 0.075,
-              borderRadius: 100,
-              padding: 10,
-              position: "absolute",
-              width: windowWidth - 40,
-              marginHorizontal: 20,
-              flexDirection: "row",
-              gap: 10,
+              padding: 12,
+              backgroundColor: "rgba(0,0,0,0.6)",
             }}
           >
-            <TextInput
+            <View
               style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: "gray",
-                borderRadius: 20,
-                paddingHorizontal: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
               }}
-              cursorColor={"gray"}
-              onChange={(text) => setReplyStatusText(text)}
-            />
+            >
+              <TextInput
+                value={replystatusText}
+                placeholder="Reply..."
+                placeholderTextColor="#aaa"
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: "#444",
+                  borderRadius: 20,
+                  paddingHorizontal: 14,
+                  color: "#fff",
+                  height: 40,
+                }}
+                cursorColor="#fff"
+                onChangeText={setReplyStatusText}
+              />
 
-            {/* send button */}
-            <TouchableOpacity style={{}}>
-              {replyingStatus ? (
-                <ActivityIndicator size={"small"} color={"#fff"} />
-              ) : (
-                <Ionicons name="send-outline" color={"#fff"} size={24} />
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity onPress={handleSendMessage}>
+                {replyingStatus ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Ionicons name="send-outline" size={24} color="#fff" />
+                )}
+              </TouchableOpacity>
 
-            {/* like button */}
-            <TouchableOpacity style={{}}>
-              {replyingStatus ? (
-                <ActivityIndicator size={"small"} color={"#fff"} />
-              ) : (
-                <Ionicons name="thumbs-up-outline" size={24} color={"white"} />
-              )}
-            </TouchableOpacity>
+              {/* <TouchableOpacity>
+              <Ionicons name="thumbs-up-outline" size={24} color="#fff" />
+            </TouchableOpacity> */}
+            </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      )}
 
-      {/* options menu */}
-      <Modal transparent visible={showMenu} animationType="none">
-        <Pressable style={{ height: windowHeight }} onPress={ToggleMenu}>
+      {/* ================= OPTIONS MODAL ================= */}
+      <Modal transparent visible={showMenu} animationType="fade">
+        <Pressable style={{ flex: 1 }} onPress={ToggleMenu}>
           <View
             style={{
               position: "absolute",
               right: 20,
               top: 100,
               backgroundColor: "#fff",
-              padding: 20,
-              borderRadius: 20,
-              width: windowWidth * 0.4,
+              padding: 16,
+              borderRadius: 16,
+              width: windowWidth * 0.45,
             }}
           >
             {optionMenuItem.map((item, index) => (
@@ -648,35 +621,17 @@ const ViewUpdateScreen = ({ route }) => {
                 key={index}
                 onPress={() => navigation.navigate(item.screen)}
               >
-                <Text style={{ fontSize: 14, paddingVertical: 5 }}>
-                  {item.title}
-                </Text>
+                <Text style={{ paddingVertical: 8 }}>{item.title}</Text>
               </TouchableOpacity>
             ))}
 
             {statusOwnerData?.[activeIndex]?.userId === userId && (
               <TouchableOpacity
-                style={{
-                  flexDirection: "row",
-                  // justifyContent: "center",
-                  alignItems: "center",
-                  gap: 10,
-                  paddingVertical: 0,
-                }}
                 onPress={() => handleDelete(statusOwnerData?.[activeIndex]?.id)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
-                {deletingStatus ? (
-                  <LoadingSpinner color={Colors.primaryColor} />
-                ) : (
-                  <>
-                    <Ionicons name="trash-bin-outline" size={20} color="red" />
-                    <Text
-                      style={{ fontSize: 14, paddingVertical: 5, color: "red" }}
-                    >
-                      Delete
-                    </Text>
-                  </>
-                )}
+                <Ionicons name="trash-bin-outline" size={18} color="red" />
+                <Text style={{ color: "red" }}>Delete</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -685,30 +640,5 @@ const ViewUpdateScreen = ({ route }) => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
-
-  progressContainer: {
-    flexDirection: "row",
-    position: "absolute",
-    top: 40,
-    left: 10,
-    right: 10,
-    zIndex: 10,
-  },
-  progressBackground: {
-    flex: 1,
-    height: 3,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    marginHorizontal: 2,
-    borderRadius: 2,
-  },
-  progressBar: {
-    height: 3,
-    backgroundColor: "#fff",
-    borderRadius: 2,
-  },
-});
 
 export default ViewUpdateScreen;

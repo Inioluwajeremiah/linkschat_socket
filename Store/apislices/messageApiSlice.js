@@ -12,23 +12,6 @@ export const messageApiSlice = apiSlice.injectEndpoints({
       invalidatesTags: ["Message"],
     }),
 
-    createGroupMessage: builder.mutation({
-      query: (body) => ({
-        url: APIEndPoints.MESSAGE_URL + "/group",
-        method: "POST",
-        body: body,
-      }),
-      invalidatesTags: ["Message"],
-    }),
-
-    createGroup: builder.mutation({
-      query: (body) => ({
-        url: APIEndPoints.MESSAGE_URL + "/group",
-        method: "POST",
-        body: body,
-      }),
-    }),
-
     getChatsMessages: builder.query({
       query: ({ userId }) => ({
         url: APIEndPoints.MESSAGE_URL + "/" + userId,
@@ -48,7 +31,6 @@ export const messageApiSlice = apiSlice.injectEndpoints({
       providesTags: ["Message"],
       keepUnusedDataFor: 86400,
     }),
-
     updateViewedMessages: builder.mutation({
       query: ({ senderId, receiverId }) => ({
         url: `${APIEndPoints.MESSAGE_URL}/${senderId}/${receiverId}`,
@@ -57,10 +39,10 @@ export const messageApiSlice = apiSlice.injectEndpoints({
       invalidatesTags: ["Message"],
     }),
     deleteMessage: builder.mutation({
-      query: ({ messageIds, chatId }) => ({
+      query: ({ senderId, messageIds, chatId }) => ({
         url: `messages/${chatId}`,
         method: "DELETE",
-        body: { messageIds },
+        body: { senderId, messageIds },
       }),
       invalidatesTags: ["Message", "Chats"],
     }),
@@ -69,8 +51,6 @@ export const messageApiSlice = apiSlice.injectEndpoints({
 
 export const {
   useGetChatsMessagesQuery,
-  useCreateGroupMessageMutation,
-  useCreateGroupMutation,
   useCreateMessageMutation,
   useGetChatMessagesQuery,
   useUpdateViewedMessagesMutation,
