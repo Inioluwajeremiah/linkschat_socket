@@ -9,6 +9,7 @@ export const apiSlice = createApi({
   baseQuery,
   tagTypes: [
     "Application",
+    "Call",
     "Chats",
     "Message",
     "Status",

@@ -29,10 +29,7 @@ const DeleteMessageHeader = ({
         senderId: userId,
       };
 
-      console.log("handleDeleteMessage body ===>>> ", body);
       const response = await deleteMessage(body);
-
-      console.log("delete message response ===>>> ", response);
 
       if (response?.data) {
         setMessagesToDelete([]);

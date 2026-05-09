@@ -19,25 +19,18 @@ import useGetUserStatus from "../hooks/useGetUserStatus";
 import { useSelector, useDispatch } from "react-redux";
 import { setUserOffline, setUserOnline } from "../utils/presence";
 import { useStreamCall } from "../hooks/streamCallHooksDelete/useStreamCall";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useDeleteGroupMutation } from "../Store/apislices/groupChatSlice";
 
 const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
   const navigation = useNavigation();
-  const dispatch = useDispatch();
   const imageSize = windowWidth * 0.15;
   const iconSize = imageSize / 1.5;
-
-  // console.log("chat header chat ===>>> ", chat);
 
   const [deleteGroup, { isLoading: deletingGroup }] = useDeleteGroupMutation();
 
   const { status } = useGetUserStatus(userBDetails?.id);
   const { userData } = useSelector((state) => state.auth);
   const userId = JSON.parse(userData)?.userId;
-
-  console.log("userid ===>> ", userId);
-  console.log("chat at ChatHeader ===>>> ", chat);
 
   const { GetOrCreateCall } = useStreamCall(
     userBDetails?.id,
@@ -64,8 +57,6 @@ const ChatHeader = ({ chat, isGroup, isNewChat, userBDetails }) => {
         chatId: chat.chatId,
         requesterId: userId,
       });
-
-      console.log("delete group response ====>>>> ", response);
 
       if (response?.data) {
         // Alert.alert("", response?.data?.message);

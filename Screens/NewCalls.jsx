@@ -1,11 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 import React, { useState } from "react";
-import CallHistory from "../Components/callhistory";
-import History from "../Components/History";
 import Histories from "../Components/Histories";
 import Call from "../Components/Call";
 import Search from "../Components/Search";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CallHistoryHeader from "../Components/CallHistoryHeader";
 
 const NewCalls = () => {
   const [show, setShow] = useState(false);
@@ -16,15 +15,9 @@ const NewCalls = () => {
         flex: 1,
       }}
     >
-      <View
-        style={{
-          position: "relative",
-        }}
-      >
-        <CallHistory setShow={setShow} />
-        {show ? <Search setShow={setShow} /> : null}
-      </View>
-      <Call />
+      <CallHistoryHeader />
+
+      {/* <Call /> */}
       <Text
         style={{
           fontSize: 16,

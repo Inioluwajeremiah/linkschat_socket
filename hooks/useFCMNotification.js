@@ -37,8 +37,8 @@ const useFCMNotification = () => {
         );
 
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          console.log("✅ Notification permission granted");
-          Alert.alert("Push notifications granted");
+          // console.log("✅ Notification permission granted");
+          // Alert.alert("Push notifications granted");
         } else {
           console.log("❌ Notification permission denied");
           Alert.alert(
@@ -55,8 +55,8 @@ const useFCMNotification = () => {
         }
       } else {
         // On Android 12 and below → permission is auto-granted
-        console.log("ℹ️ No runtime permission needed");
-        Alert.alert("Push notifications already allowed by default");
+        // console.log("ℹ️ No runtime permission needed");
+        // Alert.alert("Push notifications already allowed by default");
       }
     }
   };

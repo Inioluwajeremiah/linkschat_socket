@@ -91,7 +91,7 @@ const CallPanel = ({}) => {
     options: {
       maxConnectUserRetries: 3,
       onConnectUserError: (err, allErrors) => {
-        console.error("Failed to connect user", err, allErrors);
+        // console.error("Failed to connect user", err, allErrors);
       },
     },
   });

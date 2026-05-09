@@ -11,6 +11,7 @@ import onboardingSliceReducer from "./slices/onboardingSlice";
 import chatSliceReducer from "./slices/chatSlice";
 import streamSliceReducer from "./slices/streamSlice";
 import viewedStatusReducer from "./slices/statusSlice";
+import { viewedStatusMiddleware } from "../utils/statusHelper";
 
 const persistConfig = (key) => ({
   key: key,
@@ -54,23 +55,8 @@ const store = configureStore({
       // serializableCheck: {
       //   ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       // },
-    }).concat(apiSlice.middleware),
+    }).concat(apiSlice.middleware, viewedStatusMiddleware),
 });
 
 export const persistor = persistStore(store);
 export default store;
-
-// import { configureStore } from "@reduxjs/toolkit";
-// import contactReducer from "./contactSlice";
-// import amountReducer from "./walletSlice";
-// import toastReducer from "./toastSlice";
-// import giftReducer from "./GiftsSlice";
-
-// export const store = configureStore({
-//   reducer: {
-//     contact: contactReducer,
-//     amount: amountReducer,
-//     toast: toastReducer,
-//     gift: giftReducer,
-//   },
-// });

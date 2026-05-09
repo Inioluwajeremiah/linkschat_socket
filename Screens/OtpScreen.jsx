@@ -120,15 +120,12 @@ const OtpScreen = ({ navigation, route }) => {
 
   const handleVerifyEmail = async () => {
     const otp = `${p1}${p2}${p3}${p4}`;
-
-    console.log("onboardingId ===>> ", onBoardingId);
     try {
       const response = await verifyEmail({
         userId: onBoardingId,
         otp,
         fcmToken: fcmToken,
       });
-      console.log("handleVerifyEmail response ===>> ", response);
 
       if (response.data) {
         dispatch(setCredentials(JSON.stringify({ userId: onBoardingId })));
@@ -159,11 +156,8 @@ const OtpScreen = ({ navigation, route }) => {
     const getToken = async () => {
       try {
         const token = await messaging().getToken();
-        console.log("FCM token at otp screen ===>> ", token);
         setFCMToken(token);
-      } catch (error) {
-        console.error("error getting token at otp screen ====>> ", error);
-      }
+      } catch (error) {}
     };
 
     getToken();

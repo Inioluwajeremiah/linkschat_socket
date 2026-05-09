@@ -18,6 +18,13 @@ const LinksChatStreamVideoProvider = ({ children }) => {
   const { userData } = useSelector((state) => state.auth);
   const userId = JSON.parse(userData)?.userId;
 
+  // 🔹 Run query only if needed
+  const {
+    data: userProfileData,
+    isLoading: loadingProfileData,
+    error: userProfileDataError,
+  } = useGetUserDetailsQuery({ userId });
+
   // 🔹 Load profile from AsyncStorage first
   useEffect(() => {
     const loadProfile = async () => {
@@ -37,10 +44,6 @@ const LinksChatStreamVideoProvider = ({ children }) => {
     };
     loadProfile();
   }, []);
-
-  // 🔹 Run query only if needed
-  const { data: userProfileData, isLoading: loadingProfileData } =
-    useGetUserDetailsQuery({ userId }, { skip: !shouldFetch || !userId });
 
   // 🔹 Save profile from API to AsyncStorage
   useEffect(() => {

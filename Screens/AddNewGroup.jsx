@@ -12,13 +12,12 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Entypo from "@expo/vector-icons/Entypo";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import AllRegisteredUsersScreen from "./AllRegisteredUsersScreen";
-
 import { useSelector } from "react-redux";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useNavigation } from "@react-navigation/native";
 import { useUploadImage } from "../hooks/uploadImageHookAws";
 import { Image } from "react-native";
-import { useCreateGroupMessageMutation } from "../Store/apislices/groupChatSlice";
+import { useCreateGroupMutation } from "../Store/apislices/groupChatSlice";
 
 const AddNewGroup = () => {
   const navigation = useNavigation();
@@ -29,10 +28,8 @@ const AddNewGroup = () => {
   const [groupName, setGroupName] = useState("");
 
   const { pickImage, loadingImageUpload, uploadImageUrl } = useUploadImage();
-  const [
-    createGroupMessage,
-    { isLoading: creatingGroup, error: errorCreatingGroup },
-  ] = useCreateGroupMessageMutation();
+  const [createGroup, { isLoading: creatingGroup, error: errorCreatingGroup }] =
+    useCreateGroupMutation();
 
   const handleCreateGroup = async () => {
     // const body = {
@@ -48,19 +45,23 @@ const AddNewGroup = () => {
     const body = {
       creatorId: userId,
       groupName: groupName,
-      participants: selectedMembers,
       groupAvatar: uploadImageUrl,
-      senderId: userId,
-      content: `Hello and welcome to ${groupName}! We're thrilled to have you on board.`,
-      status: "SENT",
-      file: null,
+      participants: selectedMembers,
     };
-    console.log("creare group body ==>> ", body);
+
+    // const body = {
+    //   creatorId: userId,
+    //   groupName: groupName,
+    //   participants: selectedMembers,
+    //   groupAvatar: uploadImageUrl,
+    //   senderId: userId,
+    //   content: `Hello and welcome to ${groupName}! We're thrilled to have you on board.`,
+    //   status: "SENT",
+    //   file: null,
+    // };
 
     try {
-      const response = await createGroupMessage(body);
-
-      console.log("createGroup response ==>> ", response);
+      const response = await createGroup(body);
 
       if (response?.error) {
       }
@@ -250,7 +251,7 @@ const AddNewGroup = () => {
           {/* create group button */}
           <TouchableOpacity
             disabled={selectedMembers.length > 0 ? false : true}
-            onPress={handleCreateGroup}
+            onPress={() => handleCreateGroup()}
             style={{
               backgroundColor: selectedMembers.length > 0 ? "#5bbbdf" : "#aaa",
               padding: 12,

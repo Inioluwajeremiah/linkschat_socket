@@ -37,6 +37,14 @@ export const statusApiSlice = apiSlice.injectEndpoints({
         body: body,
       }),
     }),
+    updateStatusToViewes: builder.mutation({
+      query: (body) => ({
+        url: `${APIEndPoints.STATUS_URL}/view/${body.statusId}`,
+        method: "POST",
+        body: body,
+      }),
+    }),
+
     deleteStatus: builder.mutation({
       query: ({ statusId, userId }) => ({
         url: `${APIEndPoints.STATUS_URL}`,
@@ -53,5 +61,6 @@ export const {
   useGetStatusQuery,
   useGetSingleStatusQuery,
   useReactToStatusMutation,
+  useUpdateStatusToViewesMutation,
   useDeleteStatusMutation,
 } = statusApiSlice;

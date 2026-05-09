@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Image,
   TextInput,
   View,
@@ -388,7 +387,7 @@ const ViewUpdateScreen = ({ route }) => {
 
       c;
     } catch (error) {
-      console.error("Error occurred:", error.message);
+      // console.error("Error occurred:", error.message);
     }
   };
 

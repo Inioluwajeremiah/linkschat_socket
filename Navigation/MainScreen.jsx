@@ -17,11 +17,16 @@ import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { clearExpiredViewedStatus } from "../Store/slices/statusSlice";
 import EditGroupScreen from "../Screens/EditGroupScreen";
+import { hydrateViewedStatus } from "../utils/statusHelper";
 
 const Stack = createStackNavigator();
 
 export const MainScreen = () => {
   const navigation = useNavigation();
+
+  useEffect(() => {
+    hydrateViewedStatus();
+  }, []);
 
   // useEffect(() => {
   //   // Foreground tap

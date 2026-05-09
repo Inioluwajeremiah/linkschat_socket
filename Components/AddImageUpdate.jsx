@@ -68,7 +68,7 @@ const AddImageUpdate = ({}) => {
         setImagePath(result.assets[0]);
       }
     } catch (error) {
-      console.log("error picling file ===> ", error);
+      // console.log("error picling file ===> ", error);
     }
   };
 

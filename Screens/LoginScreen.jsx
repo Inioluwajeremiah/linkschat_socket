@@ -47,7 +47,6 @@ const LoginScreen = ({ navigation }) => {
         fcmToken: fcmToken,
       });
 
-      console.log("Login response:", res?.data?.data);
       if (res?.data) {
         dispatch(setStartedOnboarding(true));
         dispatch(setOnBoardingId(res.data?.data?.id));
@@ -84,11 +83,9 @@ const LoginScreen = ({ navigation }) => {
     const getToken = async () => {
       try {
         const token = await messaging().getToken();
-        console.log("FCM token at otp screen at login screen ===>> ", token);
+
         setFCMToken(token);
-      } catch (error) {
-        console.error("error getting token at otp screen ====>> ", error);
-      }
+      } catch (error) {}
     };
 
     getToken();

@@ -26,13 +26,27 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import LoadingSpinner from "../Components/LoadingSpinner";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { usePickImage } from "../hooks/usePickImage";
+import { useUploadToS3 } from "../hooks/useUploadToS3";
 
 const Profile = ({ navigation, route }) => {
   const { fromDahboard } = route.params || { fromDahboard: true };
   const { userData } = useSelector((state) => state.auth);
   const userId = JSON.parse(userData)?.userId;
+  const [pickedImage, setPickedImage] = useState(null);
 
-  const { pickImage, loadingImageUpload, uploadImageUrl } = useUploadImage();
+  const { pickImage, picking } = usePickImage();
+  const {
+    uploadToS3,
+    uploading: loadingImageUpload,
+    uploadedUrl: uploadImageUrl,
+  } = useUploadToS3();
+
+  const handlePickImage = async () => {
+    const image = await pickImage();
+    if (!image) return;
+    setPickedImage(image);
+  };
 
   // console.log("uploadImageUrl ===>  ", uploadImageUrl);
 
@@ -61,6 +75,10 @@ const Profile = ({ navigation, route }) => {
   // console.log("profileImageUrl ===>> ", profileImageUrl);
 
   const handlepdateProfile = async () => {
+    if (pickedImage) {
+      await uploadToS3(pickedImage);
+    }
+
     try {
       const response = await updateProfile({
         userId: userId,
@@ -120,7 +138,6 @@ const Profile = ({ navigation, route }) => {
         );
       }
     } catch (error) {
-      console.log("delete profle catch error ==> ", error);
       let errorMessage = "An unexpected error occurred";
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -256,17 +273,20 @@ const Profile = ({ navigation, route }) => {
                     alignItems: "center",
                   }}
                 >
-                  {loadingImageUpload ? (
+                  {/* loadingImageUpload ? (
                     <ActivityIndicator size={"small"} />
-                  ) : uploadImageUrl || profileImageUrl ? (
+                  ) : */}
+                  {pickedImage || profileImageUrl ? (
                     <Image
-                      source={{
-                        uri: uploadImageUrl
-                          ? uploadImageUrl
-                          : profileImageUrl
-                          ? profileImageUrl
-                          : userProfileData?.data?.imageUrl,
-                      }}
+                      source={
+                        pickedImage
+                          ? pickedImage
+                          : {
+                              uri: profileImageUrl
+                                ? profileImageUrl
+                                : userProfileData?.data?.imageUrl,
+                            }
+                      }
                       style={{ width: 64, height: 64 }}
                     />
                   ) : (
@@ -274,7 +294,7 @@ const Profile = ({ navigation, route }) => {
                   )}
                 </View>
                 <TouchableOpacity
-                  onPress={pickImage}
+                  onPress={handlePickImage}
                   style={{
                     width: 40,
                     height: 40,

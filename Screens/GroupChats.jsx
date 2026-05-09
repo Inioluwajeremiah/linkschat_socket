@@ -3,8 +3,6 @@ import React, { useEffect, useState } from "react";
 import Header from "../Components/Header";
 import { useSelector } from "react-redux";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DeleteChatHeader from "../Components/DeleteChatHeader";
-import firestore from "@react-native-firebase/firestore";
 import FloatingActionButton from "../Components/FloatingActionButton";
 import GroupMessage from "../Components/GroupMessage";
 import { Colors } from "../utils/Colors";

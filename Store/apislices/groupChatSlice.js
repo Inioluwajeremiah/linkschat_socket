@@ -21,10 +21,20 @@ export const groupChatApiSlice = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ["GroupChats"],
     }),
+
     createGroup: builder.mutation({
       query: (body) => ({
-        url: APIEndPoints.GROUP_URL + "/group",
-        method: "PUT",
+        url: APIEndPoints.CREATE_GROUP_URL,
+        method: "POST",
+        body: body,
+      }),
+      invalidatesTags: ["GroupChats"],
+    }),
+
+    sendGroupMessage: builder.mutation({
+      query: (body) => ({
+        url: `/groupS/${body.chatId}/messages`,
+        method: "POST",
         body: body,
       }),
       invalidatesTags: ["GroupChats"],
@@ -73,6 +83,7 @@ export const {
   useGetGroupChatQuery,
   useCreateGroupMessageMutation,
   useCreateGroupMutation,
+  useSendGroupMessageMutation,
   useDeleteGroupMutation,
   useUpdateGroupMutation,
 } = groupChatApiSlice;

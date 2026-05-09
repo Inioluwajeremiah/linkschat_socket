@@ -71,8 +71,6 @@ const GroupChatDetails = ({ route }) => {
     isError,
   } = useGetGroupChatQuery(chatId);
 
-  console.log("groupChatData at group chat details ===>>> ", groupChatData);
-
   const [visible, setVisible] = React.useState(false);
   const [selectedEmoji, setSelectedEmoji] = useState("");
   const [textMessage, setTextMessage] = useState("");
@@ -158,7 +156,7 @@ const GroupChatDetails = ({ route }) => {
         setChatId(response.data.data.chat.chatId);
       }
     } catch (error) {
-      console.error("Failed to send group message:", error);
+      // console.error("Failed to send group message:", error);
 
       // 6. Mark temp message as failed
       setChatMessages((prev) =>

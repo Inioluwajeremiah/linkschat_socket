@@ -24,8 +24,11 @@ import LoadingSpinner from "../Components/LoadingSpinner";
 import {
   useCreateGroupMessageMutation,
   useGetGroupChatQuery,
+  useSendGroupMessageMutation,
 } from "../Store/apislices/groupChatSlice";
 import GroupChatHeader from "../Components/GroupChatsHeader";
+import { getToken } from "@react-native-firebase/messaging";
+
 // import { FlatList } from "react-native-gesture-handler";
 
 const GroupChatDetails = ({ route }) => {
@@ -48,8 +51,11 @@ const GroupChatDetails = ({ route }) => {
   const buttonSize = windowWidth <= 500 ? 40 : windowWidth * 0.1;
   const iconSize = buttonSize / 1.3;
 
-  const [createGroupMessage, { isLoading: creatingMessage }] =
-    useCreateGroupMessageMutation();
+  // const [createGroupMessage, { isLoading: creatingMessage }] =
+  //   useCreateGroupMessageMutation();
+
+  const [sendGroupMessage, { isLoading: sendingMessage }] =
+    useSendGroupMessageMutation();
 
   // isNewChat is true in UserCard in AllRegisteredUsersScreen
   // // isNewChat is false in Message component in Messages.jsx
@@ -59,9 +65,6 @@ const GroupChatDetails = ({ route }) => {
   //     receiverId: userBId,
   //   });
 
-  console.log("groupChatData chatId ===>>> ", chatId);
-  console.log("groupChatData userId ===>>> ", userId);
-
   const {
     data: groupChat,
     isLoading,
@@ -69,8 +72,6 @@ const GroupChatDetails = ({ route }) => {
   } = useGetGroupChatQuery({ chatId, userId });
 
   const groupChatData = groupChat?.data;
-
-  console.log("groupChatData at group chat details ===>>> ", groupChatData);
 
   const [visible, setVisible] = React.useState(false);
   const [selectedEmoji, setSelectedEmoji] = useState("");
@@ -139,20 +140,26 @@ const GroupChatDetails = ({ route }) => {
       //   status: "SENT",
       //   messageType: "text",
       // }
+      // const body = {
+      //   creatorId: groupChatData?.messages[0].senderId,
+      //   senderId: userId,
+      //   content: tempMessage.content,
+      //   groupName: groupChatData.groupName,
+      //   participants: groupChatData.participants,
+      //   status: "SENT",
+      //   groupAvatar: groupChatData.groupAvatar,
+      //   file: "",
+      // };
+
       const body = {
-        creatorId: groupChatData?.messages[0].senderId,
+        chatId: chatId,
         senderId: userId,
         content: tempMessage.content,
-        groupName: groupChatData.groupName,
-        participants: groupChatData.participants,
-        status: "SENT",
-        groupAvatar: groupChatData.groupAvatar,
         file: "",
+        status: "SENT",
+        fcmToken: getToken(),
       };
-      const response = await createGroupMessage(body);
-
-      console.log("send message response ===>>> ", response);
-
+      const response = await sendGroupMessage(body);
       const savedMessage = response?.data?.data?.message;
 
       if (savedMessage) {
@@ -166,7 +173,7 @@ const GroupChatDetails = ({ route }) => {
         // setChatId(response.data.data.chat.chatId);
       }
     } catch (error) {
-      console.error("Failed to send group message:", error);
+      // console.error("Failed to send group message:", error);
 
       // 6. Mark temp message as failed
       setChatMessages((prev) =>

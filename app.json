@@ -4,11 +4,10 @@
     "slug": "linkschat",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icons/splash-icon-dark.png",
       "backgroundColor": "#ffffff"
     },
     "ios": {
@@ -23,14 +22,20 @@
       "entitlements": {
         "aps-environment": "production"
       },
+      "icon": {
+        "dark": "./assets/icons/ios-dark.png",
+        "light": "./assets/icons/ios-light.png",
+        "tinted": "./assets/icons/ios-tinted.png"
+      },
       "bitcode": false,
       "bundleIdentifier": "com.deejoft.linkschat"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+
       "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "package": "com.deejoft.linkschat",

@@ -51,22 +51,6 @@ const ViewUpdateScreen = ({ route }) => {
     refetchUpdate,
   } = route.params;
 
-  // console.log("allStatusUpdates at ViewUpdateScreen ==> ", allStatusUpdates);
-  console.log(
-    "fromCurrentUserStatus at ViewUpdateScreen ==> ",
-    fromCurrentUserStatus
-  );
-  console.log(
-    "filterCurrentUserStatus at ViewUpdateScreen ==> ",
-    filterCurrentUserStatus[0]
-  );
-  console.log(
-    "filterByOtherUsersStatus at ViewUpdateScreen ==> ",
-    filterByOtherUsersStatus[0]
-  );
-
-  console.log("statusIndex at ViewUpdateScreen ==> ", statusIndex);
-
   const [currentStatusIndex, setCurrentStatusIndex] = useState(
     statusIndex || 0
   );
@@ -85,12 +69,6 @@ const ViewUpdateScreen = ({ route }) => {
   const [timeLeft, setTimeLeft] = useState(0);
 
   const statusOwnerData = currentStatusItem?.data;
-  // const statusOwnerData = currentStatusItem;
-  // const statusOwnerData = fromCurrentUserStatus
-  //   ? filterCurrentUserStatus
-  //   : filterByOtherUsersStatus;
-  console.log("statusOwnerData ==> ", statusOwnerData);
-  console.log("currentStatusItem ==> ", currentStatusItem);
 
   const [deleteStatus, { isLoading: deletingStatus }] =
     useDeleteStatusMutation();

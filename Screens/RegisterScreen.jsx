@@ -50,10 +50,6 @@ const RegisterScreen = ({ navigation }) => {
         phone: phone,
         fcmToken: fcmToken,
       });
-
-      console.log("register response:", res);
-
-      console.log("register response obj:", res.data?.data);
       if (res?.data) {
         dispatch(setStartedOnboarding(true));
         // dispatch(setOnBoardingId(res.data?.data?.id));
@@ -133,11 +129,9 @@ const RegisterScreen = ({ navigation }) => {
     const getToken = async () => {
       try {
         const token = await messaging().getToken();
-        console.log("FCM token at otp screen at register screen ===>> ", token);
+
         setFCMToken(token);
-      } catch (error) {
-        console.error("error getting token at otp screen ====>> ", error);
-      }
+      } catch (error) {}
     };
 
     getToken();

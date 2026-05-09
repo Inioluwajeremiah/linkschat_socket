@@ -16,11 +16,21 @@ const Message = ({ item, loadingChats, chatsToDelete, setChatsToDelete }) => {
 
   const userBId = item?.participants?.find((item) => item !== userId);
 
-  const { data: userBDetails, isLoading: loadingUserDetails } =
-    useGetUserDetailsQuery({ userId: userBId });
+  const {
+    data: userBDetails,
+    isLoading: loadingUserDetails,
+    error: userBDetailsError,
+  } = useGetUserDetailsQuery({ userId: userBId });
+
+  // console.log(
+  //   "userBDetailsError details at chat message card ====>>>  ",
+  //   userBDetailsError
+  // );
 
   const imageSize = windowWidth * 0.15;
   const indicatorSize = imageSize * 0.4;
+
+  // console.log("item at chat message card ====>>> ", item.participants);
 
   const handleLongPress = (chatId) => {
     // setOnLongPressActivated(true);

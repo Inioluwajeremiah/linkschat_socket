@@ -59,7 +59,7 @@ function BottomTabs() {
       })}
     >
       <Tab.Screen name="Chats" component={Chats} />
-      <Tab.Screen name="Group Chat" component={GroupChats} />
+      {/* <Tab.Screen name="Group Chat" component={GroupChats} /> */}
       <Tab.Screen name="Calls" component={NewCalls} />
       <Tab.Screen name="Profile" component={Profile} />
       <Tab.Screen name="Stories" component={Chats} />

@@ -36,8 +36,6 @@ const EditGroupScreen = ({ route }) => {
   const [updateGroup, { isLoading: creatingGroup, error: errorUpdatingGroup }] =
     useUpdateGroupMutation();
 
-  console.log("EditGroupScreen chat ===>> ", chat);
-
   const handleupdateGroup = async () => {
     const body = {
       chatId: chat?.chatId,
@@ -49,8 +47,6 @@ const EditGroupScreen = ({ route }) => {
     };
     try {
       const response = await updateGroup(body);
-
-      console.log("handleupdateGroup ===>>> ", response);
 
       if (response?.error) {
       }

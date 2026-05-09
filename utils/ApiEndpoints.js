@@ -6,6 +6,7 @@ export const APIEndPoints = {
   GROUP_CHAT_URL: "/group-chats",
   MESSAGE_URL: "/message",
   GROUP_MESSAGE_URL: "/message/group",
+  CREATE_GROUP_URL: "/create/groups",
   GROUP_URL: "/group",
   STREAM_TOKEN_URL: "/stream/token",
   STATUS_URL: "/status",
