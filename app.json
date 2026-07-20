@@ -1,0 +1,131 @@
+{
+  "expo": {
+    "name": "LinksChat",
+    "slug": "linkschat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "linkschat",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": {
+        "dark": "./assets/icons/ios-dark.png",
+        "light": "./assets/icons/ios-light.png",
+        "tinted": "./assets/icons/ios-tinted.png"
+      },
+      "bundleIdentifier": "com.deejoft.linkschat"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#5bbbdf",
+        "foregroundImage": "./assets/icons/adaptive-icon.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
+      ],
+      "googleServicesFile": "./google-services.json",
+      "package": "com.deejoft.linkschat",
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "developmentClient": {
+      "silentLaunch": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f5f7fa",
+          "image": "./assets/images/splash-icon-dark.png",
+          "dark": {
+            "backgroundColor": "#0a0a14",
+            "image": "./assets/icons/splash-icon-light.png"
+          },
+          "android": {
+            "image": "./assets/icons/splash-icon-dark.png",
+            "dark": {
+              "backgroundColor": "#0a0a14",
+              "image": "./assets/icons/splash-icon-light.png"
+            }
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification_icon.png",
+          "color": "#f5f7fa",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/notification_sound.wav",
+            "./assets/notification_sound_other.wav"
+          ],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts."
+        }
+      ],
+      "expo-image",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone.",
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ],
+      [
+        "expo-sharing",
+        {
+          "ios": {
+            "enabled": true,
+            "activationRule": {
+              "supportsImageWithMaxCount": 5
+            }
+          },
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["image/*"],
+            "multipleShareMimeTypes": ["image/*"]
+          }
+        }
+      ],
+      "expo-asset",
+
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to record reels."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "054788a4-bea4-4813-9a57-d2c643b2503a"
+      }
+    },
+    "owner": "linkschat"
+  }
+}
