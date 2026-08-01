@@ -15,21 +15,26 @@
 // import { Ionicons } from "@expo/vector-icons";
 // import { LinearGradient } from "expo-linear-gradient";
 // import { Image } from "expo-image";
+// import * as Contacts from "expo-contacts";
 // import { Spacing } from "../../constants";
 // import { useTheme } from "../../context/ThemeContext";
 // import { toast, useToast } from "../../context/ToastContext";
 // import { userApi, chatApi, privacyApi } from "../../services/api";
 // import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
+// import { useStartCall } from "../../hooks/useStartCall";
 // import { addOrUpdateChat } from "../../store/slices/chatSlice";
 // import { User } from "../../types";
+// import { useContactNameResolver } from "@/hooks/useContactName";
 
 // export default function ProfileViewScreen() {
 //   const { colors } = useTheme();
 //   const { id } = useLocalSearchParams<{ id: string }>();
 //   const router = useRouter();
 //   const dispatch = useAppDispatch();
+//   const resolveContact = useContactNameResolver();
 //   const { user: me } = useAppSelector((s) => s.auth);
 //   const onlineUsers = useAppSelector((s) => s.socket.onlineUsers);
+
 //   const [profile, setProfile] = useState<User | null>(null);
 //   const [loading, setLoading] = useState(true);
 //   const [chatLoading, setChatLoading] = useState(false);
@@ -40,7 +45,11 @@
 //     const load = async () => {
 //       try {
 //         const res = await userApi.getUserProfile(id);
-//         if (res.success) setProfile(res.data.user);
+//         if (res.success) {
+//           setProfile(res.data.user);
+//           // Resolve contact name after profile loads
+//           // await resolveContact(res.data.user);
+//         }
 //       } catch {
 //       } finally {
 //         setLoading(false);
@@ -48,6 +57,62 @@
 //     };
 //     load();
 //   }, [id]);
+
+//   // ── Look up this user in device contacts by phone number ──────────────────
+//   // const resolveContact = async (user: User) => {
+//   //   try {
+//   //     const { status } = await Contacts.requestPermissionsAsync();
+//   //     if (status !== "granted") {
+//   //       setContactResolved(true);
+//   //       return;
+//   //     }
+
+//   //     if (!user.phone) {
+//   //       setContactResolved(true);
+//   //       return;
+//   //     }
+
+//   //     // Normalize the stored phone — strip non-digits for comparison
+//   //     const normalize = (p: string) => p.replace(/\D/g, "");
+//   //     const userPhone = normalize(user.phone);
+//   //     // Match on last 9 digits to handle country code variations
+//   //     const userPhoneSuffix = userPhone.slice(-9);
+
+//   //     const { data } = await Contacts.getContactsAsync({
+//   //       fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+//   //     });
+
+//   //     let found: Contacts.Contact | null = null;
+//   //     for (const contact of data) {
+//   //       if (!contact.phoneNumbers) continue;
+//   //       for (const pn of contact.phoneNumbers) {
+//   //         const normalized = normalize(pn.number || "");
+//   //         if (
+//   //           normalized.slice(-9) === userPhoneSuffix &&
+//   //           normalized.length >= 7
+//   //         ) {
+//   //           found = contact;
+//   //           break;
+//   //         }
+//   //       }
+//   //       if (found) break;
+//   //     }
+
+//   //     if (found) {
+//   //       setContactName(found.name || null);
+//   //       // Use the phone number as stored on device
+//   //       setContactPhone(found.phoneNumbers?.[0]?.number || user.phone || null);
+//   //       setIsInContacts(true);
+//   //     } else {
+//   //       setContactPhone(user.phone || null);
+//   //       setIsInContacts(false);
+//   //     }
+//   //   } catch {
+//   //     setIsInContacts(false);
+//   //   } finally {
+//   //     setContactResolved(true);
+//   //   }
+//   // };
 
 //   const startChat = async () => {
 //     setChatLoading(true);
@@ -63,12 +128,17 @@
 //     }
 //   };
 
+//   // Both call buttons previously navigated to `/call/${id}` using the
+//   // profile's USER id directly — but CallScreen expects a CHAT id there.
+//   // Now using the shared hook so this logic only lives in one place.
+//   const { startCall, callLoading } = useStartCall();
+
 //   const handleBlock = () => {
 //     Alert.alert(
 //       isBlocked ? "Unblock User" : "Block User",
 //       isBlocked
-//         ? `Unblock ${profile?.name}? They will be able to message you again.`
-//         : `Block ${profile?.name}? They won't be able to message you and you won't see their content.`,
+//         ? `Unblock ${displayName}? They will be able to message you again.`
+//         : `Block ${displayName}? They won't be able to message you.`,
 //       [
 //         { text: "Cancel", style: "cancel" },
 //         {
@@ -79,11 +149,11 @@
 //               if (isBlocked) {
 //                 await privacyApi.unblockUser(id);
 //                 setIsBlocked(false);
-//                 toast.success(`${profile?.name} unblocked`);
+//                 toast.success(`${displayName} unblocked`);
 //               } else {
 //                 await privacyApi.blockUser(id);
 //                 setIsBlocked(true);
-//                 toast.success(`${profile?.name} blocked`);
+//                 toast.success(`${displayName} blocked`);
 //               }
 //             } catch {
 //               toast.error("Action failed");
@@ -99,7 +169,7 @@
 //     setShowMenu(false);
 //     Alert.alert(
 //       "Report User",
-//       `Report ${profile?.name} for inappropriate behavior?`,
+//       `Report ${displayName} for inappropriate behavior?`,
 //       [
 //         { text: "Cancel", style: "cancel" },
 //         { text: "Spam", onPress: () => submitReport("spam") },
@@ -119,14 +189,27 @@
 //   };
 
 //   const isOnline = onlineUsers.includes(id);
-//   const initials =
-//     profile?.name
-//       .split(" ")
-//       .map((w) => w[0])
-//       .join("")
-//       .slice(0, 2)
-//       .toUpperCase() || "?";
 //   const isMe = id === me?._id;
+
+//   // Name to display — prefer saved contact name, fall back to profile name
+
+//   const { displayName, isContact } = resolveContact(
+//     profile?.phone,
+//     profile?.name
+//   );
+
+//   // const displayName = contactName || profile?.name || "Unknown";
+//   // If contact name differs from profile name, show profile name as username
+//   const showProfileAlias = displayName !== profile?.name && profile?.name;
+//   // means name exists in contact if not it would be profile name
+//   const isInContacts = displayName !== profile?.name;
+
+//   const initials = displayName
+//     .split(" ")
+//     .map((w) => w[0])
+//     .join("")
+//     .slice(0, 2)
+//     .toUpperCase();
 
 //   const styles = StyleSheet.create({
 //     container: { flex: 1 },
@@ -204,8 +287,53 @@
 //       fontWeight: "800",
 //       color: colors.textPrimary,
 //       marginBottom: 4,
+//       textAlign: "center",
 //     },
-//     onlineText: { fontSize: 13, color: colors.textMuted, marginBottom: 12 },
+//     profileAlias: {
+//       fontSize: 13,
+//       color: colors.textMuted,
+//       marginBottom: 6,
+//       textAlign: "center",
+//     },
+//     onlineText: {
+//       fontSize: 13,
+//       color: colors.textMuted,
+//       marginBottom: 12,
+//     },
+//     notInContactsBadge: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       gap: 5,
+//       backgroundColor: "rgba(255,193,7,0.1)",
+//       borderWidth: 1,
+//       borderColor: "rgba(255,193,7,0.25)",
+//       borderRadius: 99,
+//       paddingHorizontal: 10,
+//       paddingVertical: 5,
+//       marginBottom: 12,
+//     },
+//     notInContactsText: {
+//       fontSize: 12,
+//       color: "#ffc107",
+//       fontWeight: "600",
+//     },
+//     inContactsBadge: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       gap: 5,
+//       backgroundColor: "rgba(0,212,170,0.08)",
+//       borderWidth: 1,
+//       borderColor: "rgba(0,212,170,0.2)",
+//       borderRadius: 99,
+//       paddingHorizontal: 10,
+//       paddingVertical: 5,
+//       marginBottom: 12,
+//     },
+//     inContactsText: {
+//       fontSize: 12,
+//       color: "#00d4aa",
+//       fontWeight: "600",
+//     },
 //     bio: {
 //       fontSize: 14,
 //       color: colors.textSecondary,
@@ -242,7 +370,11 @@
 //       fontWeight: "600",
 //       marginTop: 1,
 //     },
-//     divider: { height: 1, backgroundColor: colors.divider, marginLeft: 68 },
+//     divider: {
+//       height: 1,
+//       backgroundColor: colors.divider,
+//       marginLeft: 68,
+//     },
 //     actionsRow: {
 //       flexDirection: "row",
 //       paddingHorizontal: Spacing.base,
@@ -268,7 +400,11 @@
 //       borderWidth: 1,
 //       borderColor: colors.border,
 //     },
-//     actionText: { color: colors.textPrimary, fontSize: 14, fontWeight: "700" },
+//     actionText: {
+//       color: colors.textPrimary,
+//       fontSize: 14,
+//       fontWeight: "700",
+//     },
 //     modalOverlay: {
 //       flex: 1,
 //       backgroundColor: "rgba(0,0,0,0.55)",
@@ -287,7 +423,7 @@
 //       width: 36,
 //       height: 4,
 //       borderRadius: 2,
-//       backgroundColor: colors.surface,
+//       backgroundColor: colors.border,
 //       alignSelf: "center",
 //       marginBottom: 20,
 //     },
@@ -297,7 +433,7 @@
 //       gap: 14,
 //       paddingVertical: 14,
 //       borderBottomWidth: StyleSheet.hairlineWidth,
-//       borderBottomColor: colors.bubbleOther,
+//       borderBottomColor: colors.border,
 //     },
 //     menuIcon: {
 //       width: 38,
@@ -307,7 +443,11 @@
 //       alignItems: "center",
 //     },
 //     menuLabel: { fontSize: 15, fontWeight: "600" },
-//     cancelRow: { borderBottomWidth: 0, justifyContent: "center", marginTop: 4 },
+//     cancelRow: {
+//       borderBottomWidth: 0,
+//       justifyContent: "center",
+//       marginTop: 4,
+//     },
 //     cancelText: {
 //       fontSize: 15,
 //       fontWeight: "700",
@@ -320,7 +460,11 @@
 //       <View
 //         style={[
 //           styles.container,
-//           { justifyContent: "center", alignItems: "center" },
+//           {
+//             backgroundColor: colors.background,
+//             justifyContent: "center",
+//             alignItems: "center",
+//           },
 //         ]}
 //       >
 //         <ActivityIndicator color={colors.primary} size="large" />
@@ -329,10 +473,7 @@
 //   }
 
 //   return (
-//     <SafeAreaView
-//       style={[styles.container, { backgroundColor: colors.background }]}
-//       edges={["top"]}
-//     >
+//     <View style={[styles.container, { backgroundColor: colors.background }]}>
 //       <View style={styles.header}>
 //         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
 //           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
@@ -384,14 +525,40 @@
 //             <View
 //               style={[
 //                 styles.onlineIndicator,
-//                 { backgroundColor: isOnline ? colors.online : colors.offline },
+//                 {
+//                   backgroundColor: isOnline ? colors.online : colors.offline,
+//                 },
 //               ]}
 //             />
 //           </View>
-//           <Text style={styles.name}>{profile?.name}</Text>
+
+//           <Text style={styles.name}>{displayName}</Text>
+
+//           {showProfileAlias && (
+//             <Text style={styles.profileAlias}>@{profile?.name}</Text>
+//           )}
+
+//           {!isMe &&
+//             (isInContacts ? (
+//               <View style={styles.inContactsBadge}>
+//                 <Ionicons name="checkmark-circle" size={13} color="#00d4aa" />
+//                 <Text style={styles.inContactsText}>
+//                   Saved in your contacts
+//                 </Text>
+//               </View>
+//             ) : (
+//               <View style={styles.notInContactsBadge}>
+//                 <Ionicons name="person-add-outline" size={13} color="#ffc107" />
+//                 <Text style={styles.notInContactsText}>
+//                   Not in your contacts
+//                 </Text>
+//               </View>
+//             ))}
+
 //           <Text style={styles.onlineText}>
-//             {isOnline ? "Online" : "Offline"}
+//             {isOnline ? "🟢 Online" : "⚫ Offline"}
 //           </Text>
+
 //           <Text style={styles.bio}>
 //             {profile?.bio || "Hey there! I am using LinksChat."}
 //           </Text>
@@ -414,9 +581,10 @@
 //               </View>
 //             </View>
 //           )}
+
 //           {profile?.phone && (
 //             <>
-//               <View style={styles.divider} />
+//               {profile?.email && <View style={styles.divider} />}
 //               <View style={styles.infoRow}>
 //                 <View style={styles.infoIcon}>
 //                   <Ionicons
@@ -425,10 +593,34 @@
 //                     color={colors.primary}
 //                   />
 //                 </View>
-//                 <View>
-//                   <Text style={styles.infoLabel}>Phone</Text>
-//                   <Text style={styles.infoValue}>{profile.phone}</Text>
+//                 <View style={{ flex: 1 }}>
+//                   <Text style={styles.infoLabel}>
+//                     {isInContacts ? "Mobile" : "Phone"}
+//                   </Text>
+//                   <Text style={styles.infoValue}>{profile?.phone}</Text>
 //                 </View>
+//                 {!isInContacts && !isMe && (
+//                   <View
+//                     style={{
+//                       backgroundColor: "rgba(255,193,7,0.1)",
+//                       borderRadius: 8,
+//                       paddingHorizontal: 10,
+//                       paddingVertical: 5,
+//                       borderWidth: 1,
+//                       borderColor: "rgba(255,193,7,0.25)",
+//                     }}
+//                   >
+//                     <Text
+//                       style={{
+//                         fontSize: 11,
+//                         color: "#ffc107",
+//                         fontWeight: "700",
+//                       }}
+//                     >
+//                       Unsaved
+//                     </Text>
+//                   </View>
+//                 )}
 //               </View>
 //             </>
 //           )}
@@ -448,15 +640,17 @@
 //                 style={styles.actionGradient}
 //               >
 //                 {chatLoading ? (
-//                   <ActivityIndicator color={colors.textPrimary} size="small" />
+//                   <ActivityIndicator color="#fff" size="small" />
 //                 ) : (
 //                   <>
 //                     <Ionicons
 //                       name="chatbubble-outline"
 //                       size={20}
-//                       color={colors.textPrimary}
+//                       color="#fff"
 //                     />
-//                     <Text style={styles.actionText}>Message</Text>
+//                     <Text style={[styles.actionText, { color: "#fff" }]}>
+//                       Message
+//                     </Text>
 //                   </>
 //                 )}
 //               </LinearGradient>
@@ -464,28 +658,48 @@
 
 //             <TouchableOpacity
 //               style={styles.actionBtnSecondary}
-//               onPress={() => router.push(`/call/${id}?type=audio`)}
+//               onPress={() => startCall(id, "audio")}
+//               disabled={callLoading !== null}
 //               activeOpacity={0.8}
 //             >
-//               <Ionicons name="call-outline" size={20} color={colors.primary} />
-//               <Text style={[styles.actionText, { color: colors.primary }]}>
-//                 Voice Call
-//               </Text>
+//               {callLoading === "audio" ? (
+//                 <ActivityIndicator size="small" color={colors.primary} />
+//               ) : (
+//                 <>
+//                   <Ionicons
+//                     name="call-outline"
+//                     size={20}
+//                     color={colors.primary}
+//                   />
+//                   <Text style={[styles.actionText, { color: colors.primary }]}>
+//                     Voice
+//                   </Text>
+//                 </>
+//               )}
 //             </TouchableOpacity>
 
 //             <TouchableOpacity
 //               style={styles.actionBtnSecondary}
-//               onPress={() => router.push(`/call/${id}?type=video`)}
+//               onPress={() => startCall(id, "video")}
+//               disabled={callLoading !== null}
 //               activeOpacity={0.8}
 //             >
-//               <Ionicons
-//                 name="videocam-outline"
-//                 size={20}
-//                 color={colors.secondary}
-//               />
-//               <Text style={[styles.actionText, { color: colors.secondary }]}>
-//                 Video Call
-//               </Text>
+//               {callLoading === "video" ? (
+//                 <ActivityIndicator size="small" color={colors.secondary} />
+//               ) : (
+//                 <>
+//                   <Ionicons
+//                     name="videocam-outline"
+//                     size={20}
+//                     color={colors.secondary}
+//                   />
+//                   <Text
+//                     style={[styles.actionText, { color: colors.secondary }]}
+//                   >
+//                     Video
+//                   </Text>
+//                 </>
+//               )}
 //             </TouchableOpacity>
 //           </View>
 //         )}
@@ -508,17 +722,17 @@
 //               {
 //                 icon: isBlocked ? "ban" : "ban-outline",
 //                 label: isBlocked
-//                   ? `Unblock ${profile?.name}`
-//                   : `Block ${profile?.name}`,
+//                   ? `Unblock ${displayName}`
+//                   : `Block ${displayName}`,
 //                 color: "#ff4757",
 //                 onPress: handleBlock,
 //               },
-//               {
-//                 icon: "flag-outline",
-//                 label: `Report ${profile?.name}`,
-//                 color: "#ffc107",
-//                 onPress: handleReport,
-//               },
+//               // {
+//               //   icon: "flag-outline",
+//               //   label: `Report ${displayName}`,
+//               //   color: "#ffc107",
+//               //   onPress: handleReport,
+//               // },
 //             ].map(({ icon, label, color, onPress }) => (
 //               <TouchableOpacity
 //                 key={label}
@@ -543,8 +757,7 @@
 //           </Pressable>
 //         </Pressable>
 //       </Modal>
-//       {/* </ScrollView> */}
-//     </SafeAreaView>
+//     </View>
 //   );
 // }
 
@@ -571,8 +784,11 @@ import { useTheme } from "../../context/ThemeContext";
 import { toast, useToast } from "../../context/ToastContext";
 import { userApi, chatApi, privacyApi } from "../../services/api";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
+import { useStartCall } from "../../hooks/useStartCall";
 import { addOrUpdateChat } from "../../store/slices/chatSlice";
 import { User } from "../../types";
+import { useIsBlocked } from "@/hooks/useIsBlockedUser";
+import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
 
 export default function ProfileViewScreen() {
   const { colors } = useTheme();
@@ -586,7 +802,7 @@ export default function ProfileViewScreen() {
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
+  const isBlocked = useIsBlocked(id);
 
   // Contact resolution
   const [contactName, setContactName] = useState<string | null>(null);
@@ -681,6 +897,11 @@ export default function ProfileViewScreen() {
     }
   };
 
+  // Both call buttons previously navigated to `/call/${id}` using the
+  // profile's USER id directly — but CallScreen expects a CHAT id there.
+  // Now using the shared hook so this logic only lives in one place.
+  const { startCall, callLoading } = useStartCall();
+
   const handleBlock = () => {
     Alert.alert(
       isBlocked ? "Unblock User" : "Block User",
@@ -696,11 +917,11 @@ export default function ProfileViewScreen() {
             try {
               if (isBlocked) {
                 await privacyApi.unblockUser(id);
-                setIsBlocked(false);
+                dispatch(removeBlocked(id));
                 toast.success(`${displayName} unblocked`);
               } else {
                 await privacyApi.blockUser(id);
-                setIsBlocked(true);
+                dispatch(addBlocked(id));
                 toast.success(`${displayName} blocked`);
               }
             } catch {
@@ -830,7 +1051,6 @@ export default function ProfileViewScreen() {
       marginBottom: 4,
       textAlign: "center",
     },
-    // Profile alias shown below contact name
     profileAlias: {
       fontSize: 13,
       color: colors.textMuted,
@@ -842,7 +1062,6 @@ export default function ProfileViewScreen() {
       color: colors.textMuted,
       marginBottom: 12,
     },
-    // "Not in contacts" badge
     notInContactsBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -860,7 +1079,6 @@ export default function ProfileViewScreen() {
       color: "#ffc107",
       fontWeight: "600",
     },
-    // "Saved contact" badge
     inContactsBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -924,6 +1142,24 @@ export default function ProfileViewScreen() {
       paddingHorizontal: Spacing.base,
       gap: 10,
     },
+    blockedBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginHorizontal: Spacing.base,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+    },
+    blockedBannerText: { flex: 1, fontSize: 13, lineHeight: 18 },
+    blockedBannerBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 99,
+      borderWidth: 1,
+      borderColor: "#ff4757",
+    },
+    blockedBannerBtnText: { color: "#ff4757", fontWeight: "700", fontSize: 12 },
     actionBtn: { flex: 1, borderRadius: 14, overflow: "hidden" },
     actionGradient: {
       flexDirection: "row",
@@ -1017,10 +1253,7 @@ export default function ProfileViewScreen() {
   }
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: colors.background }]}
-      // edges={["top"]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
@@ -1079,15 +1312,12 @@ export default function ProfileViewScreen() {
             />
           </View>
 
-          {/* Display name — contact name or profile name */}
           <Text style={styles.name}>{displayName}</Text>
 
-          {/* If using contact name, show profile username below */}
           {showProfileAlias && (
             <Text style={styles.profileAlias}>@{profile?.name}</Text>
           )}
 
-          {/* Contact status badge */}
           {!isMe &&
             contactResolved &&
             (isInContacts ? (
@@ -1117,7 +1347,7 @@ export default function ProfileViewScreen() {
 
         {/* Info rows */}
         <View style={styles.section}>
-          {profile?.email && (
+          {/* {profile?.email && (
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
                 <Ionicons
@@ -1131,9 +1361,8 @@ export default function ProfileViewScreen() {
                 <Text style={styles.infoValue}>{profile.email}</Text>
               </View>
             </View>
-          )}
+          )} */}
 
-          {/* Phone — prefer device contact phone, fall back to profile phone */}
           {(contactPhone || profile?.phone) && (
             <>
               {profile?.email && <View style={styles.divider} />}
@@ -1153,7 +1382,6 @@ export default function ProfileViewScreen() {
                     {contactPhone || profile?.phone}
                   </Text>
                 </View>
-                {/* If not saved, show add to contacts hint */}
                 {!isInContacts && !isMe && (
                   <View
                     style={{
@@ -1182,7 +1410,30 @@ export default function ProfileViewScreen() {
         </View>
 
         {/* Actions */}
-        {!isMe && (
+        {!isMe && isBlocked ? (
+          <View
+            style={[
+              styles.blockedBanner,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Ionicons name="ban" size={22} color="#ff4757" />
+            <Text
+              style={[
+                styles.blockedBannerText,
+                { color: colors.textSecondary },
+              ]}
+            >
+              You've blocked {displayName}. They can't message or call you.
+            </Text>
+            <TouchableOpacity
+              onPress={handleBlock}
+              style={styles.blockedBannerBtn}
+            >
+              <Text style={styles.blockedBannerBtnText}>Unblock</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !isMe ? (
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.actionBtn}
@@ -1213,31 +1464,51 @@ export default function ProfileViewScreen() {
 
             <TouchableOpacity
               style={styles.actionBtnSecondary}
-              onPress={() => router.push(`/call/${id}?type=audio`)}
+              onPress={() => startCall(id, "audio")}
+              disabled={callLoading !== null}
               activeOpacity={0.8}
             >
-              <Ionicons name="call-outline" size={20} color={colors.primary} />
-              <Text style={[styles.actionText, { color: colors.primary }]}>
-                Voice
-              </Text>
+              {callLoading === "audio" ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <>
+                  <Ionicons
+                    name="call-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={[styles.actionText, { color: colors.primary }]}>
+                    Voice
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionBtnSecondary}
-              onPress={() => router.push(`/call/${id}?type=video`)}
+              onPress={() => startCall(id, "video")}
+              disabled={callLoading !== null}
               activeOpacity={0.8}
             >
-              <Ionicons
-                name="videocam-outline"
-                size={20}
-                color={colors.secondary}
-              />
-              <Text style={[styles.actionText, { color: colors.secondary }]}>
-                Video
-              </Text>
+              {callLoading === "video" ? (
+                <ActivityIndicator size="small" color={colors.secondary} />
+              ) : (
+                <>
+                  <Ionicons
+                    name="videocam-outline"
+                    size={20}
+                    color={colors.secondary}
+                  />
+                  <Text
+                    style={[styles.actionText, { color: colors.secondary }]}
+                  >
+                    Video
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Block / Report action sheet */}
@@ -1262,12 +1533,12 @@ export default function ProfileViewScreen() {
                 color: "#ff4757",
                 onPress: handleBlock,
               },
-              {
-                icon: "flag-outline",
-                label: `Report ${displayName}`,
-                color: "#ffc107",
-                onPress: handleReport,
-              },
+              // {
+              //   icon: "flag-outline",
+              //   label: `Report ${displayName}`,
+              //   color: "#ffc107",
+              //   onPress: handleReport,
+              // },
             ].map(({ icon, label, color, onPress }) => (
               <TouchableOpacity
                 key={label}

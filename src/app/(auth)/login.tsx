@@ -94,8 +94,6 @@ export default function LoginScreen() {
       });
       toast.dismiss(loadId!);
 
-      console.log("login res ==>>> ", res);
-
       if (res.success) {
         await AsyncStorage.setItem("pendingUserId", res.data.userId);
         toast.success("OTP sent!", "Check your email inbox");
@@ -110,7 +108,6 @@ export default function LoginScreen() {
       }
     } catch (err: unknown) {
       toast.dismiss(loadId!);
-      console.log("login error ===>> ", err);
 
       toast.error(
         "Login failed",

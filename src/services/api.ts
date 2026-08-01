@@ -568,8 +568,6 @@ export const userApi = {
     success: boolean;
     data: { user: import("../types").User };
   }> => {
-    console.log(" update profile in api.ts ===>>> ", formData);
-
     const token = await AsyncStorage.getItem("accessToken"); // match how you get token elsewhere
     const response = await fetch(`${API_BASE_URL}/users/profile`, {
       method: "PATCH",
@@ -636,11 +634,11 @@ export const platformContactsApi = {
 
 // Phone contacts sync
 export const contactsSyncApi = {
-  sync: (phoneNumbers: string[]) =>
+  sync: (phoneNumbers: string[], deviceCountryCode: string) =>
     api.post<{
       success: boolean;
       data: { users: import("../types").User[]; total: number };
-    }>("/users/contacts/sync", { phoneNumbers }),
+    }>("/users/contacts/sync", { phoneNumbers, deviceCountryCode }),
 };
 
 // Calls

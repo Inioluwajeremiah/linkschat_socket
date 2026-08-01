@@ -22,7 +22,8 @@ export interface Message {
     | "document"
     | "sticker"
     | "location"
-    | "gif";
+    | "gif"
+    | "call";
   mediaName?: string;
   mediaSize?: number;
   mediaUrl?: string;
@@ -30,6 +31,9 @@ export interface Message {
   mediaThumbnail?: string;
   replyTo?: Message;
   reactions: MessageReaction[];
+  callType: "audio" | "video";
+  callStatus: "completed" | "missed";
+  callDuration: number;
   readBy: ReadReceipt[];
   deliveredTo: any;
   deletedFor: any;
@@ -47,9 +51,20 @@ export interface MessageSearchResult {
   messageId: string;
   chatId: string;
   chatType: "private" | "group";
-  type: "text" | "image" | "audio" | "video" | "document" | "gif" | "sticker";
+  type:
+    | "text"
+    | "image"
+    | "audio"
+    | "video"
+    | "document"
+    | "gif"
+    | "sticker"
+    | "call";
   displayName?: string;
   displayAvatar?: string;
+  callType: "audio" | "video";
+  callStatus: "completed" | "missed";
+  callDuration: number;
   senderName: string;
   isMine: boolean;
   content: string;
@@ -81,6 +96,7 @@ export interface Chat {
   _id: string;
   type: "private" | "group";
   name?: string;
+  phone?: number;
   avatar?: string;
   description?: string;
   participants: ChatParticipant[];

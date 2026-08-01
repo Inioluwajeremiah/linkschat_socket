@@ -26,8 +26,7 @@
         "android.permission.WRITE_CONTACTS"
       ],
       "googleServicesFile": "./google-services.json",
-      "package": "com.deejoft.linkschat",
-      "softwareKeyboardLayoutMode": "pan"
+      "package": "com.deejoft.linkschat"
     },
     "web": {
       "output": "static",
@@ -102,19 +101,23 @@
           },
           "android": {
             "enabled": true,
-            "singleShareMimeTypes": ["image/*"],
-            "multipleShareMimeTypes": ["image/*"]
+            "singleShareMimeTypes": [
+              "image/*"
+            ],
+            "multipleShareMimeTypes": [
+              "image/*"
+            ]
           }
         }
       ],
       "expo-asset",
-
       [
         "expo-image-picker",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to record reels."
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -18,7 +18,7 @@ Notifications.setNotificationHandler({
 
 export async function registerForPushNotifications(): Promise<string | null> {
   if (!Device.isDevice) {
-    console.warn("Push notifications require a physical device");
+    // console.warn("Push notifications require a physical device");
     return null;
   }
 
@@ -31,7 +31,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   if (finalStatus !== "granted") {
-    console.warn("Push notification permission denied");
+    // console.warn("Push notification permission denied");
     return null;
   }
 
@@ -51,7 +51,6 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   const token = (await Notifications.getExpoPushTokenAsync()).data;
-  console.log("token ===>> ", token);
 
   return token;
 }
@@ -82,7 +81,7 @@ export function usePushNotifications() {
           await api.post("/users/push-token", { token });
         }
       } catch (err) {
-        console.warn("Push registration failed:", err);
+        // console.warn("Push registration failed:", err);
       }
     };
 
@@ -95,7 +94,7 @@ export function usePushNotifications() {
           string,
           string
         >;
-        console.log("📱 Foreground notification:", data?.type);
+        // console.log("📱 Foreground notification:", data?.type);
         // Handled by socket in-app — no duplicate alert needed
       });
 

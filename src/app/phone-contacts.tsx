@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import * as Contacts from "expo-contacts";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,10 +18,12 @@ import { Image } from "expo-image";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import { contactsSyncApi, chatApi } from "../services/api";
-import { useAppDispatch } from "../hooks/useRedux";
+import { useAppDispatch, useAppSelector } from "../hooks/useRedux";
 import { addOrUpdateChat } from "../store/slices/chatSlice";
 import { User } from "../types";
 import { Spacing, BorderRadius, Colors } from "../constants";
+import { getLocales } from "expo-localization";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 interface PhoneContact {
   id: string;
@@ -46,6 +47,7 @@ function ContactCard({
   onCall: () => void;
   index: number;
 }) {
+  const router = useRouter();
   const { colors } = useTheme();
   const slideAnim = useRef(new Animated.Value(50)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -84,7 +86,10 @@ function ContactCard({
       ]}
     >
       {/* Avatar */}
-      <View style={styles.avatarWrap}>
+      <TouchableOpacity
+        onPress={() => router.push(`/profile/${item._id}`)}
+        style={styles.avatarWrap}
+      >
         {item.avatar ? (
           <Image
             source={{ uri: item.avatar }}
@@ -104,7 +109,7 @@ function ContactCard({
         {item.isOnline && (
           <View style={[styles.onlineDot, { borderColor: colors.surface }]} />
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Info */}
       <View style={styles.info}>
@@ -259,7 +264,9 @@ function EmptyState({
                 size={18}
                 color={colors.surface}
               />
-              <Text style={styles.allowText}>Invite Friends</Text>
+              <Text style={[styles.allowText, { color: colors.surface }]}>
+                Invite Friends
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </>
@@ -273,6 +280,8 @@ export default function PhoneContactsScreen() {
   const { colors, isDark } = useTheme();
   const toast = useToast();
   const dispatch = useAppDispatch();
+
+  const owner = useAppSelector((s) => s.auth.user);
 
   const [permissionStatus, setPermissionStatus] =
     useState<Contacts.PermissionStatus | null>(null);
@@ -340,10 +349,22 @@ export default function PhoneContactsScreen() {
     setSyncing(true);
     const syncId = toast.loading("Syncing contacts...");
     try {
+      const locales = getLocales();
+
+      const deviceCountry =
+        locales.length > 0 && locales[0].regionCode
+          ? locales[0].regionCode
+          : "";
       // Fetch all phone contacts
       const { data: phoneContacts } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
       });
+      const ownerCountry = owner?.phone
+        ? parsePhoneNumberFromString(owner.phone)?.country
+        : deviceCountry;
+
+      console.log("Owner phone:", owner?.phone);
+      console.log("Owner country:", ownerCountry);
 
       setTotalPhoneContacts(phoneContacts.length);
 
@@ -379,7 +400,11 @@ export default function PhoneContactsScreen() {
 
       for (let i = 0; i < allNumbers.length; i += chunkSize) {
         const chunk = allNumbers.slice(i, i + chunkSize);
-        const res = await contactsSyncApi.sync(chunk);
+        // const res = await contactsSyncApi.sync(chunk);
+        const res = await contactsSyncApi.sync(
+          chunk,
+          ownerCountry || deviceCountry
+        );
         if (res.success) {
           const mapped: MatchedContact[] = res.data.users.map((u) => {
             // Find which phone number matched

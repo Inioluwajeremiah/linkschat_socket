@@ -247,7 +247,10 @@ export default function BlockedUsersScreen() {
       .then((res) => {
         if (res.success) setUsers(res.data.users);
       })
-      .catch(() => toast.error("Failed to load blocked users"))
+      .catch((err) => {
+        toast.error("Failed to load blocked users");
+        console.log("get blocked users error ===>>> ", err);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -274,10 +277,7 @@ export default function BlockedUsersScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={[
@@ -353,6 +353,9 @@ export default function BlockedUsersScreen() {
               <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
                 No blocked users
               </Text>
+              {/* <TouchableOpacity onPress={load} >
+                <Text>Retry</Text>
+              </TouchableOpacity> */}
               <Text style={[styles.emptySub, { color: colors.textMuted }]}>
                 Block users from their profile or from the chat header menu.
               </Text>
@@ -419,7 +422,7 @@ export default function BlockedUsersScreen() {
           }}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -19,8 +19,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const isDark = scheme !== "light";
   const colors = isDark ? DarkColors : LightColors;
 
-  console.log("color scheme ===>>> ", scheme);
-
   return (
     <ThemeContext.Provider value={{ colors, isDark }}>
       {children}

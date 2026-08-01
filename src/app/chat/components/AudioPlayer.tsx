@@ -196,7 +196,7 @@ export default function AudioPlayer({
         player.play();
       }
     } catch (e) {
-      console.warn("Audio playback failed", e);
+      // console.warn("Audio playback failed", e);
     }
   };
 

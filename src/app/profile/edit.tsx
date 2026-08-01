@@ -83,14 +83,11 @@ export default function ProfileEditScreen() {
 
       const res = await userApi.updateProfile(formData);
 
-      console.log("update user res ===>>> ", res);
-
       if (res.success) {
         dispatch(updateUser(res.data.user));
         router.back();
       }
     } catch (err) {
-      console.log("update user err ===>>> ", err);
       Alert.alert("Error", "Failed to update profile");
     } finally {
       setSaving(false);

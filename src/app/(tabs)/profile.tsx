@@ -8,7 +8,6 @@ import {
   Switch,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
@@ -94,8 +93,6 @@ export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((s) => s.auth);
-
-  console.log("user from useappselector ==>>> ", user);
 
   const [notifications, setNotifications] = useState(true);
 

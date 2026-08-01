@@ -45,7 +45,7 @@ export default function DocMessage({
           await Sharing.shareAsync(localUri);
         }
       } catch (e) {
-        console.warn("Failed to open document", e);
+        // console.warn("Failed to open document", e);
       }
       return;
     }

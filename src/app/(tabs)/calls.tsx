@@ -8,17 +8,16 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useState, useEffect, useCallback } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
-import { Colors, Spacing, BorderRadius } from "../../constants";
+import { Colors, Spacing } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
-import { useToast } from "../../context/ToastContext";
 import { callApi } from "../../services/api";
 import { CallHistory, User } from "../../types";
 import { useAppSelector } from "../../hooks/useRedux";
 import { formatDistanceToNow } from "../../utils/date";
+import { useContactNameResolver } from "@/hooks/useContactName";
 
 const CALL_ICONS: Record<
   string,
@@ -32,13 +31,21 @@ const CALL_ICONS: Record<
 
 function CallItem({ call, myId }: { call: CallHistory; myId: string }) {
   const { colors, isDark } = useTheme();
+  const resolveContact = useContactNameResolver();
   const isInitiator = call.initiator._id === myId;
   const other = isInitiator
     ? call.participants.find((p) => p._id !== myId) || call.participants[0]
     : call.initiator;
 
+  console.log("other in call ===>>> ", call);
+
   const iconInfo = CALL_ICONS[call.status] || CALL_ICONS.completed;
-  const initials = (other?.name || "?")
+
+  const { displayName: displayOtherName, isContact } = resolveContact(
+    other?.phone,
+    other?.name
+  );
+  const initials = (displayOtherName || "?")
     .split(" ")
     .map((w) => w[0])
     .join("")
@@ -91,7 +98,7 @@ function CallItem({ call, myId }: { call: CallHistory; myId: string }) {
 
       <View style={styles.callInfo}>
         <Text style={[styles.callerName, { color: colors.textPrimary }]}>
-          {other?.name || "Unknown"}
+          {displayOtherName || "Unknown"}
         </Text>
         <View style={styles.callMeta}>
           <Ionicons

@@ -46,12 +46,12 @@ export const loadOnboardingState =
   ) => {
     try {
       const stored = await AsyncStorage.getItem("isCompleteOnboarding");
-      console.log("isCompleteOnboarding at loadOnboardingState ==>>> ", stored);
+      // console.log("isCompleteOnboarding at loadOnboardingState ==>>> ", stored);
 
       if (stored !== null) {
         dispatch(setIsCompleteOnboarding(JSON.parse(stored)));
       }
     } catch (e) {
-      console.warn("Failed to load onboarding state:", e);
+      // console.warn("Failed to load onboarding state:", e);
     }
   };

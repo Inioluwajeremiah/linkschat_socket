@@ -15,6 +15,7 @@ import { Image } from "expo-image";
 import { useTheme } from "../../context/ThemeContext";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { fetchStatuses } from "../../store/slices/statusSlice";
+import { useContactNameResolver } from "@/hooks/useContactName";
 
 function StatusRing({ statuses, viewed, colors }: any) {
   const allViewed = statuses.every((s: any) => s.viewed);
@@ -37,6 +38,7 @@ export default function StatusScreen() {
   const { user } = useAppSelector((s) => s.auth);
   const { myStatus, statuses, loading } = useAppSelector((s) => s.status);
   const dispatch = useAppDispatch();
+  const resolveContact = useContactNameResolver();
   // const [myStatus, setMyStatus] = useState<StatusGroup | null>(null);
   // const [statuses, setStatuses] = useState<StatusGroup[]>([]);
   // const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function StatusScreen() {
       try {
         await dispatch(fetchStatuses()).unwrap();
       } catch (err) {
-        console.error(err);
+        // console.error(err);
       }
     };
 
@@ -274,8 +276,8 @@ export default function StatusScreen() {
                             style={styles.statusAvatarFallback}
                           >
                             <Text style={styles.statusInitials}>
-                              {group.user.name
-                                .split(" ")
+                              {resolveContact(group.user.phone, group.user.name)
+                                .displayName.split(" ")
                                 .map((w) => w[0])
                                 .join("")
                                 .slice(0, 2)
@@ -292,7 +294,12 @@ export default function StatusScreen() {
                             { color: colors.textPrimary },
                           ]}
                         >
-                          {group.user.name}
+                          {
+                            resolveContact(group.user.phone, group.user.name)
+                              .displayName
+                          }
+
+                          {/* {group.user.name } */}
                         </Text>
 
                         <Text

@@ -91,32 +91,32 @@ export default function PrivacyScreen() {
   const [appLock, setAppLock] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [res, bio] = await Promise.all([
-          privacyApi.getSettings(),
-          LocalAuthentication.hasHardwareAsync(),
-        ]);
-        if (res.success) {
-          const s = (res.data.settings as any)?.privacySettings || {};
-          setSettings({
-            hideOnlineStatus: s.hideOnlineStatus ?? false,
-            hideLastSeen: s.hideLastSeen ?? false,
-            disableReadReceipts: s.disableReadReceipts ?? false,
-            onlyContactsCanMessage: s.onlyContactsCanMessage ?? false,
-          });
-          setAppLock((res.data.settings as any)?.appLockEnabled ?? false);
-        }
-        setBiometricAvailable(bio);
-      } catch (err) {
-        console.log("privacy error ==>>> ", err);
-
-        toast.error("Failed to load settings");
-      } finally {
-        setLoading(false);
+  const load = async () => {
+    try {
+      const [res, bio] = await Promise.all([
+        privacyApi.getSettings(),
+        LocalAuthentication.hasHardwareAsync(),
+      ]);
+      if (res.success) {
+        const s = (res.data.settings as any)?.privacySettings || {};
+        setSettings({
+          hideOnlineStatus: s.hideOnlineStatus ?? false,
+          hideLastSeen: s.hideLastSeen ?? false,
+          disableReadReceipts: s.disableReadReceipts ?? false,
+          onlyContactsCanMessage: s.onlyContactsCanMessage ?? false,
+        });
+        setAppLock((res.data.settings as any)?.appLockEnabled ?? false);
       }
-    };
+      setBiometricAvailable(bio);
+    } catch (err) {
+      console.log("get privacy settings err ===>>> ", err);
+
+      toast.error("Failed to load settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
     load();
   }, []);
 
@@ -177,10 +177,7 @@ export default function PrivacyScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={[
@@ -244,17 +241,17 @@ export default function PrivacyScreen() {
             onToggle={(v) => updateSetting("disableReadReceipts", v)}
             colors={colors}
           />
-          <SettingRow
+          {/* <SettingRow
             icon="people-outline"
             label="Only Contacts Can Message"
             sub="Strangers can't start a chat with you"
             value={settings.onlyContactsCanMessage}
             onToggle={(v) => updateSetting("onlyContactsCanMessage", v)}
             colors={colors}
-          />
+          /> */}
         </View>
 
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+        {/* <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
           APP SECURITY
         </Text>
         <View
@@ -279,7 +276,7 @@ export default function PrivacyScreen() {
             onToggle={handleAppLock}
             colors={colors}
           />
-        </View>
+        </View> */}
 
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
           BLOCKED USERS
@@ -309,7 +306,7 @@ export default function PrivacyScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

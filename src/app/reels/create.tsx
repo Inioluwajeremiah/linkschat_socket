@@ -1,277 +1,3 @@
-// import {
-//   View,
-//   Text,
-//   StyleSheet,
-//   TouchableOpacity,
-//   TextInput,
-//   ActivityIndicator,
-// } from "react-native";
-// import { useRef, useState } from "react";
-// import { useRouter } from "expo-router";
-// import { SafeAreaView } from "react-native-safe-area-context";
-// import { Ionicons } from "@expo/vector-icons";
-// import { LinearGradient } from "expo-linear-gradient";
-// import * as ImagePicker from "expo-image-picker";
-// import { createVideoPlayer } from "expo-video";
-// import { useTheme } from "../../context/ThemeContext";
-// import { useToast } from "../../context/ToastContext";
-// import { reelApi, uploadFileToS3 } from "../../services/api";
-// import ThumbnailProcessor from "../status/components/ThumbnailProcessor";
-// import { prependReel } from "@/store/slices/reelSlice";
-// import { useAppDispatch } from "@/hooks/useRedux";
-
-// export default function CreateReelScreen() {
-//   const router = useRouter();
-//   const { colors } = useTheme();
-//   const toast = useToast();
-//   const dispatch = useAppDispatch();
-//   const [videoUri, setVideoUri] = useState<string | null>(null);
-//   const [durationSec, setDurationSec] = useState(0);
-//   const [caption, setCaption] = useState("");
-//   const [uploading, setUploading] = useState(false);
-//   const [thumbSource, setThumbSource] = useState<any>(null);
-//   const thumbResolveRef = useRef<((uri: string | null) => void) | null>(null);
-//   const pickVideo = async () => {
-//     const result = await ImagePicker.launchImageLibraryAsync({
-//       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-//       quality: 0.8,
-//       videoMaxDuration: 60,
-//     });
-//     if (result.canceled) return;
-
-//     const asset = result.assets[0];
-//     setVideoUri(asset.uri);
-//     setDurationSec(Math.round(asset.duration || 0));
-//   };
-
-//   const processThumbnail = (source: any): Promise<string | null> => {
-//     return new Promise((resolve) => {
-//       thumbResolveRef.current = resolve;
-//       setThumbSource(source);
-//     });
-//   };
-
-//   const handlePost = async () => {
-//     if (!videoUri) {
-//       toast.error("Select a video first");
-//       return;
-//     }
-//     setUploading(true);
-//     const id = toast.loading("Uploading reel...");
-//     try {
-//       // 1. Upload the actual video file to S3 — the local file URI only
-//       // resolves on this device, so every other user needs the S3 URL.
-//       const videoUrl = await uploadFileToS3(
-//         videoUri,
-//         "reel.mp4",
-//         "video/mp4",
-//         "video"
-//       );
-
-//       // 2. Best-effort thumbnail generation + upload, same as status videos.
-//       let thumbnailUrl: string | undefined;
-//       try {
-//         const thumbPlayer = createVideoPlayer(videoUri);
-//         const [thumbnail] = await thumbPlayer.generateThumbnailsAsync([0]);
-//         thumbPlayer.release();
-//         if (thumbnail) {
-//           const savedUri = await processThumbnail(thumbnail);
-//           if (savedUri) {
-//             // const saved = await thumbnail.saveAsync({ format: "jpeg" });
-//             thumbnailUrl = await uploadFileToS3(
-//               savedUri,
-//               "reel-thumb.jpg",
-//               "image/jpeg",
-//               "image"
-//             );
-//           }
-//         }
-//       } catch (e) {
-//         console.warn("Thumbnail generation failed", e);
-//       }
-
-//       // 3. Create the reel record pointing at the uploaded S3 URLs.
-//       const res = await reelApi.createReel({
-//         videoUrl,
-//         thumbnail: thumbnailUrl,
-//         caption: caption.trim() || undefined,
-//         duration: durationSec || undefined,
-//       });
-
-//       toast.dismiss(id!);
-//       if (res.data.reel) {
-//         dispatch(prependReel(res.data.reel));
-//         toast.success("Reel posted!");
-//         router.back();
-//       } else {
-//         toast.error("Failed to post reel");
-//       }
-//     } catch (err) {
-//       console.log("create reel err ==>>>", err);
-//       toast.dismiss(id!);
-//       toast.error("Failed to post reel");
-//     } finally {
-//       setUploading(false);
-//     }
-//   };
-
-//   return (
-//     <View style={[styles.container, { backgroundColor: colors.background }]}>
-//       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
-//         <View style={[styles.header, { borderBottomColor: colors.border }]}>
-//           <TouchableOpacity
-//             style={[styles.closeBtn, { backgroundColor: colors.surface }]}
-//             onPress={() => router.back()}
-//             disabled={uploading}
-//           >
-//             <Ionicons name="close" size={24} color={colors.textPrimary} />
-//           </TouchableOpacity>
-//           <Text style={[styles.title, { color: colors.textPrimary }]}>
-//             New Reel
-//           </Text>
-//           <TouchableOpacity
-//             style={[styles.postBtn, !videoUri && { opacity: 0.5 }]}
-//             onPress={handlePost}
-//             disabled={!videoUri || uploading}
-//           >
-//             {uploading ? (
-//               <ActivityIndicator size="small" color="#fff" />
-//             ) : (
-//               <Text style={styles.postBtnText}>Post</Text>
-//             )}
-//           </TouchableOpacity>
-//         </View>
-
-//         <View style={styles.body}>
-//           <TouchableOpacity
-//             style={[
-//               styles.picker,
-//               { backgroundColor: colors.surface, borderColor: colors.border },
-//             ]}
-//             onPress={pickVideo}
-//             activeOpacity={0.85}
-//             disabled={uploading}
-//           >
-//             {videoUri ? (
-//               <View style={styles.pickedState}>
-//                 <Ionicons name="film" size={48} color="#00d4aa" />
-//                 <Text
-//                   style={[styles.pickedTitle, { color: colors.textPrimary }]}
-//                 >
-//                   Video selected ✓
-//                 </Text>
-//                 <Text style={[styles.pickedSub, { color: colors.textMuted }]}>
-//                   {durationSec ? `${durationSec}s · ` : ""}Tap to change
-//                 </Text>
-//               </View>
-//             ) : (
-//               <View style={styles.emptyState}>
-//                 <LinearGradient
-//                   colors={["#00d4aa22", "#5b8dee22"]}
-//                   style={styles.emptyIcon}
-//                 >
-//                   <Ionicons name="videocam" size={44} color="#00d4aa" />
-//                 </LinearGradient>
-//                 <Text
-//                   style={[styles.emptyTitle, { color: colors.textPrimary }]}
-//                 >
-//                   Select a Video
-//                 </Text>
-//                 <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-//                   Up to 60 seconds
-//                 </Text>
-//               </View>
-//             )}
-//           </TouchableOpacity>
-
-//           <View
-//             style={[
-//               styles.captionBox,
-//               { backgroundColor: colors.surface, borderColor: colors.border },
-//             ]}
-//           >
-//             <TextInput
-//               style={[styles.captionInput, { color: colors.textPrimary }]}
-//               placeholder="Write a caption..."
-//               placeholderTextColor={colors.textMuted}
-//               value={caption}
-//               onChangeText={setCaption}
-//               multiline
-//               maxLength={500}
-//               editable={!uploading}
-//             />
-//             <Text style={[styles.charCount, { color: colors.textMuted }]}>
-//               {caption.length}/500
-//             </Text>
-//           </View>
-//         </View>
-
-//         {thumbSource && (
-//           <ThumbnailProcessor
-//             source={thumbSource}
-//             onDone={(uri) => {
-//               thumbResolveRef.current?.(uri);
-//               thumbResolveRef.current = null;
-//             }}
-//           />
-//         )}
-//       </SafeAreaView>
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: { flex: 1 },
-//   header: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     paddingHorizontal: 16,
-//     paddingVertical: 12,
-//     gap: 12,
-//     borderBottomWidth: 1,
-//   },
-//   closeBtn: {
-//     width: 38,
-//     height: 38,
-//     borderRadius: 19,
-//     justifyContent: "center",
-//     alignItems: "center",
-//   },
-//   title: { flex: 1, fontSize: 18, fontWeight: "800" },
-//   postBtn: {
-//     backgroundColor: "#00d4aa",
-//     paddingHorizontal: 18,
-//     paddingVertical: 8,
-//     borderRadius: 99,
-//   },
-//   postBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-//   body: { padding: 16, gap: 14 },
-//   picker: {
-//     height: 200,
-//     borderRadius: 16,
-//     borderWidth: 1.5,
-//     borderStyle: "dashed",
-//     justifyContent: "center",
-//     alignItems: "center",
-//   },
-//   emptyState: { alignItems: "center", gap: 10 },
-//   emptyIcon: {
-//     width: 80,
-//     height: 80,
-//     borderRadius: 24,
-//     justifyContent: "center",
-//     alignItems: "center",
-//   },
-//   emptyTitle: { fontSize: 17, fontWeight: "700" },
-//   emptySub: { fontSize: 13 },
-//   pickedState: { alignItems: "center", gap: 8 },
-//   pickedTitle: { fontSize: 16, fontWeight: "700" },
-//   pickedSub: { fontSize: 12 },
-//   captionBox: { borderRadius: 14, borderWidth: 1, padding: 14, minHeight: 90 },
-//   captionInput: { fontSize: 15, lineHeight: 22, minHeight: 60 },
-//   charCount: { fontSize: 11, textAlign: "right", marginTop: 4 },
-// });
-
 import {
   View,
   Text,
@@ -342,7 +68,7 @@ export default function CreateReelScreen() {
     if (status !== "granted") {
       Alert.alert(
         "Camera permission needed",
-        "Enable camera access in Settings to record or take a photo for your reel."
+        "Enable camera access in Settings to record or take a photo for your LinksSwipe."
       );
       return;
     }
@@ -377,7 +103,7 @@ export default function CreateReelScreen() {
     }
     setUploading(true);
     const id = toast.loading(
-      mode === "video" ? "Uploading reel..." : "Posting photo..."
+      mode === "video" ? "Uploading LinksSwipe..." : "Posting photo..."
     );
     try {
       let mediaUrl: string;
@@ -388,7 +114,7 @@ export default function CreateReelScreen() {
         // resolves on this device, so every other user needs the S3 URL.
         mediaUrl = await uploadFileToS3(
           mediaUri,
-          "reel.mp4",
+          "linksswipe.mp4",
           "video/mp4",
           "video"
         );
@@ -403,21 +129,21 @@ export default function CreateReelScreen() {
             if (savedUri) {
               thumbnailUrl = await uploadFileToS3(
                 savedUri,
-                "reel-thumb.jpg",
+                "linksswipe-thumb.jpg",
                 "image/jpeg",
                 "image"
               );
             }
           }
         } catch (e) {
-          console.warn("Thumbnail generation failed", e);
+          // console.warn("Thumbnail generation failed", e);
         }
       } else {
         // Image reel — the file itself doubles as its own thumbnail, so
         // just upload it once and reuse the URL for both fields.
         mediaUrl = await uploadFileToS3(
           mediaUri,
-          "reel.jpg",
+          "linksswipe.jpg",
           "image/jpeg",
           "image"
         );
@@ -436,15 +162,17 @@ export default function CreateReelScreen() {
       toast.dismiss(id!);
       if (res.data.reel) {
         dispatch(prependReel(res.data.reel));
-        toast.success(mode === "video" ? "Reel posted!" : "Photo posted!");
+        toast.success(
+          mode === "video" ? "LinksSwipe posted!" : "Photo posted!"
+        );
         router.back();
       } else {
-        toast.error("Failed to post reel");
+        toast.error("Failed to post LinksSwipe");
       }
     } catch (err) {
-      console.log("create reel err ==>>>", err);
+      // console.log("create LinksSwipe err ==>>>", err);
       toast.dismiss(id!);
-      toast.error("Failed to post reel");
+      toast.error("Failed to post LinksSwipe");
     } finally {
       setUploading(false);
     }
@@ -462,7 +190,7 @@ export default function CreateReelScreen() {
             <Ionicons name="close" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.textPrimary }]}>
-            New Reel
+            New LinksSwipe
           </Text>
           <TouchableOpacity
             style={[styles.postBtn, !mediaUri && { opacity: 0.5 }]}

@@ -14,6 +14,8 @@ import { ThemeProvider, useTheme } from "../context/ThemeContext";
 import { ToastProvider, ToastRefWirer } from "../context/ToastContext";
 import { loadOnboardingState } from "@/store/slices/onboardingslice";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
+import { loadDeviceContacts } from "@/store/slices/contactsSlice";
 
 function SocketInitializer() {
   useSocket();
@@ -22,6 +24,21 @@ function SocketInitializer() {
 
 function PushInitializer() {
   usePushNotifications();
+  return null;
+}
+
+function ContactsLoader() {
+  const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector((s) => s.auth);
+  const { loaded, loading } = useAppSelector((s) => s.contacts);
+
+  useEffect(() => {
+    // Only fire once — after auth is confirmed and we haven't loaded/aren't loading
+    if (isAuthenticated && !loaded && !loading) {
+      dispatch(loadDeviceContacts());
+    }
+  }, [isAuthenticated, loaded, loading]);
+
   return null;
 }
 
@@ -51,6 +68,7 @@ function AppNavigator() {
         <SocketInitializer />
         <PushInitializer />
         <ToastRefWirer />
+        <ContactsLoader />
         <StatusBar style={colors.statusBar} />
         <Stack
           screenOptions={{

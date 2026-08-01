@@ -28,6 +28,8 @@ import socketReducer from "./slices/socketSlice";
 import onboardingReducer from "./slices/onboardingslice";
 import statusReducer from "./slices/statusSlice";
 import reelReducer from "./slices/reelSlice";
+import contactsReducer from "./slices/contactsSlice";
+import blockedUsersReducer from "./slices/blockedUserSlice";
 
 export const store = configureStore({
   reducer: {
@@ -38,6 +40,8 @@ export const store = configureStore({
     onboarding: onboardingReducer,
     status: statusReducer,
     reel: reelReducer,
+    contacts: contactsReducer,
+    blocked: blockedUsersReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

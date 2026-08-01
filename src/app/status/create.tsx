@@ -11,10 +11,8 @@ import {
 } from "react-native";
 import { useRef, useState } from "react";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { StatusBar } from "expo-status-bar";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView, createVideoPlayer } from "expo-video";

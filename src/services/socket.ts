@@ -157,15 +157,15 @@ class SocketService {
     });
 
     this.socket.on("connect", () => {
-      console.log("✅ Socket connected:", this.socket?.id);
+      // console.log("✅ Socket connected:", this.socket?.id);
     });
 
     this.socket.on("disconnect", (reason) => {
-      console.log("❌ Socket disconnected:", reason);
+      // console.log("❌ Socket disconnected:", reason);
     });
 
     this.socket.on("connect_error", (error) => {
-      console.error("Socket connection error:", error.message);
+      // console.error("Socket connection error:", error.message);
     });
 
     return this.socket;
@@ -204,8 +204,6 @@ class SocketService {
   }
 
   joinChat(chatId: string): void {
-    console.log("join chat ==>>", chatId);
-
     this.emit("chat:join", chatId);
   }
 
@@ -236,13 +234,41 @@ class SocketService {
     this.emit("message:read", { chatId });
   }
 
+  // initiateCall(data: {
+  //   callerAvatar?: string;
+  //   callerName?: string;
+  //   recipientId?: string;
+  //   callId: string;
+  //   type: "audio" | "video";
+  //   chatId?: string;
+  // }): void {
+  //   this.emit("call:initiate", data);
+  // }
+
+  // acceptCall(callId: string, callerId: string): void {
+  //   this.emit("call:accept", { callId, callerId });
+  // }
+
+  // rejectCall(callId: string, callerId: string): void {
+  //   this.emit("call:reject", { callId, callerId });
+  // }
+
+  // endCall(
+  //   callId: string,
+  //   participants: string[],
+  //   type: "audio" | "video" = "audio",
+  //   status: string = "completed"
+  // ): void {
+  //   this.emit("call:end", { callId, participants, type, status });
+  // }
+
+  // leaveCall(callId: string): void {
+  //   this.emit("call:leave", { callId });
+  // }
   initiateCall(data: {
-    callerAvatar: string;
-    callerName: string;
-    recipientId: string;
+    chatId: string;
     callId: string;
     type: "audio" | "video";
-    chatId?: string;
   }): void {
     this.emit("call:initiate", data);
   }
@@ -253,6 +279,13 @@ class SocketService {
 
   rejectCall(callId: string, callerId: string): void {
     this.emit("call:reject", { callId, callerId });
+  }
+
+  // Leaving a call you'd already joined. Used for group calls so leaving
+  // only removes you, instead of disconnecting everyone else the way
+  // endCall would.
+  leaveCall(callId: string): void {
+    this.emit("call:leave", { callId });
   }
 
   endCall(

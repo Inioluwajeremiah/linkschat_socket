@@ -206,7 +206,7 @@ export default function RegisterScreen() {
               />
               <TextInput
                 style={[styles.input, { color: colors.textPrimary }]}
-                placeholder="Your full name"
+                placeholder="Your name"
                 placeholderTextColor={Colors.textMuted}
                 value={name}
                 onChangeText={setName}

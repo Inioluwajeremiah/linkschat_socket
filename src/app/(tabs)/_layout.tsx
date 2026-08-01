@@ -64,7 +64,7 @@ export default function TabsLayout() {
           },
         ],
         tabBarActiveTintColor: colors.tabActive,
-        tabBarInactiveTintColor: colors.tabInactive,
+        tabBarInactiveTintColor: colors.textPrimary,
         tabBarLabelStyle: styles.tabLabel,
         // tabBarBackground: () => (
         //   <BlurView
@@ -130,7 +130,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="status"
         options={{
-          title: "Stories",
+          title: "My Stories",
           tabBarIcon: ({ color, focused }) => (
             <>
               <TabIcon name="radio" focused={focused} />
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
 
     elevation: 0,
   },
-  tabLabel: { fontSize: 11, fontWeight: "600", marginTop: 2 },
+  tabLabel: { fontSize: 12, fontWeight: "600", marginTop: 2 },
   iconWrap: { position: "absolute", top: -4, alignItems: "center" },
   badge: {
     position: "absolute",

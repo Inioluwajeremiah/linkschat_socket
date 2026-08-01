@@ -112,17 +112,15 @@ export const BorderRadius = {
   full: 9999,
 };
 
-export const API_BASE_URL = "http://172.27.57.108:5000/api";
+export const API_BASE_URL = "http://172.27.42.173:5000/api";
 // "https://linkschat-backend-with-dashboard.onrender.com/api";
-
+//  "https://api.linkschat.com/api";
 // "https://linkschat-backend.onrender.com/api";
-
 // process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
-console.log(" API_BASE_URL ===>>> ", API_BASE_URL);
 
-export const SOCKET_URL = "http://172.27.57.108:5000";
+export const SOCKET_URL = "http://172.27.42.173:5000";
 // "https://linkschat-backend-with-dashboard.onrender.com";
-
+// "https://api.linkschat.com/";
 //  "https://linkschat-backend.onrender.com";
 
 // process.env.EXPO_PUBLIC_SOCKET_URL || "http://localhost:5000";
