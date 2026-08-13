@@ -1000,6 +1000,7 @@ export default function ChatScreen() {
     ? chatInfo?.avatar
     : (otherParticipant?.user as User)?.avatar;
   const isOtherOnline = !isGroup && (otherParticipant?.user as User)?.isOnline;
+
   const initials = (displayName || "?")
     .split(" ")
     .map((w: string) => w[0])

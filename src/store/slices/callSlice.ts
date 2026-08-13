@@ -50,6 +50,7 @@ export interface IncomingCallData {
   type: "audio" | "video";
   callerId: string;
   callerName: string;
+  callerPhone?: number;
   callerAvatar?: string;
   chatId?: string;
   // NEW — present when the call was initiated in a group chat

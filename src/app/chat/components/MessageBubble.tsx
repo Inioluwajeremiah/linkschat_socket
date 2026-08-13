@@ -18,6 +18,8 @@ import { useMediaDownload } from "@/utils/mediaCache.ts";
 import DocMessage, { docStyles } from "./DocMessage";
 import * as Sharing from "expo-sharing";
 import { findBundledStickerSource } from "@/constants/stickers";
+import { colors } from "@stream-io/video-react-native-sdk";
+import { useTheme } from "@/context/ThemeContext";
 
 interface Props {
   message: Message;
@@ -31,22 +33,22 @@ interface Props {
   onMediaPress: (uri: string, type: "image" | "video") => void;
   onCallBack?: (type: "audio" | "video") => void;
 
-  colors: any;
+  colors?: any;
   myId: string;
 }
 
-const STATUS_ICONS = {
-  sending: { name: "time-outline" as const, color: "rgba(255,255,255)" },
-  sent: { name: "checkmark-outline" as const, color: "rgba(255,255,255)" },
-  delivered: {
-    name: "checkmark-done-outline" as const,
-    color: "rgba(255,255,255)",
-  },
-  read: {
-    name: "checkmark-done-outline" as const,
-    color: "#fff",
-  },
-};
+// const STATUS_ICONS = {
+//   sending: { name: "time-outline" as const, color: "rgba(0,0,0)" },
+//   sent: { name: "checkmark-outline" as const, color: "rgba(0,0,0)" },
+//   delivered: {
+//     name: "checkmark-done-outline" as const,
+//     color: "rgba(0,0,0,0.5)",
+//   },
+//   read: {
+//     name: "checkmark-done-outline" as const,
+//     color: "#000",
+//   },
+// };
 
 // ─── Reply preview ─────────────────────────────────────────────────────────
 function ReplyPreview({ replyTo, colors }: { replyTo: any; colors: any }) {
@@ -346,13 +348,29 @@ export default function MessageBubble({
   onReplyPress,
   onMediaPress,
   onCallBack,
-  colors,
+
   myId,
 }: Props) {
   const slideAnim = useRef(new Animated.Value(isOwn ? 30 : -30)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const viewRef = useRef<View>(null);
+  const { colors } = useTheme();
+  const STATUS_ICONS = {
+    sending: { name: "time-outline" as const, color: "rgba(0,0,0)" },
+    sent: {
+      name: "checkmark-outline" as const,
+      color: colors.sentCheckMarkColor,
+    },
+    delivered: {
+      name: "checkmark-done-outline" as const,
+      color: colors.deliveredCheckMarkColor,
+    },
+    read: {
+      name: "checkmark-done-outline" as const,
+      color: colors.readCheckMarkColor,
+    },
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -534,8 +552,14 @@ export default function MessageBubble({
               style={[
                 styles.bubble,
                 isOwn
-                  ? styles.bubbleOwn
-                  : [styles.bubbleOther, { backgroundColor: colors.surface }],
+                  ? [
+                      styles.bubbleOwn,
+                      { backgroundColor: colors.ownerChatBackground },
+                    ]
+                  : [
+                      styles.bubbleOther,
+                      { backgroundColor: colors.chatBackground },
+                    ],
                 isDeleted && styles.bubbleDeleted,
               ]}
             >
@@ -743,7 +767,7 @@ export default function MessageBubble({
                           message.callStatus === "missed"
                             ? "rgba(255,71,87,0.15)"
                             : isOwn
-                            ? "rgba(255,255,255,0.15)"
+                            ? "rgba(0,212,170,0.1)"
                             : "rgba(0,212,170,0.1)",
                       },
                     ]}
@@ -761,7 +785,7 @@ export default function MessageBubble({
                         message.callStatus === "missed"
                           ? "#ff4757"
                           : isOwn
-                          ? "#fff"
+                          ? "#00d4aa"
                           : "#00d4aa"
                       }
                       style={
@@ -779,9 +803,10 @@ export default function MessageBubble({
                           color:
                             message.callStatus === "missed"
                               ? "#ff4757"
-                              : isOwn
-                              ? "#fff"
                               : colors.textPrimary,
+                          // : isOwn
+                          // ? "#fff"
+                          // : colors.textPrimary,
                         },
                       ]}
                     >
@@ -798,9 +823,10 @@ export default function MessageBubble({
                         style={[
                           callLogStyles.duration,
                           {
-                            color: isOwn
-                              ? "rgba(255,255,255,0.7)"
-                              : colors.textPrimary,
+                            // color: isOwn
+                            //   ? "rgba(255,255,255,0.7)"
+                            //   : colors.textPrimary,
+                            color: colors.textPrimary,
                           },
                         ]}
                       >
@@ -818,7 +844,7 @@ export default function MessageBubble({
                         callLogStyles.callBackBtn,
                         {
                           backgroundColor: isOwn
-                            ? "rgba(255,255,255,0.15)"
+                            ? "rgba(0,212,170,0.12)"
                             : "rgba(0,212,170,0.12)",
                         },
                       ]}
@@ -828,7 +854,7 @@ export default function MessageBubble({
                           message.callType === "video" ? "videocam" : "call"
                         }
                         size={15}
-                        color={isOwn ? "#fff" : "#00d4aa"}
+                        color={isOwn ? "#00d4aa" : "#00d4aa"}
                       />
                     </View>
                   )}
@@ -837,7 +863,8 @@ export default function MessageBubble({
                 <Text
                   style={[
                     styles.textContent,
-                    { color: isOwn ? "#fff" : colors.textPrimary },
+                    { color: colors.textPrimary },
+                    // { color: isOwn ? "#fff" : colors.textPrimary },
                   ]}
                 >
                   {message.content}
@@ -855,7 +882,8 @@ export default function MessageBubble({
                     style={[
                       styles.editedTag,
                       {
-                        color: isOwn ? "rgba(255,255,255)" : colors.textPrimary,
+                        // color: isOwn ? "rgba(255,255,255)" : colors.textPrimary,
+                        color: colors.textPrimary,
                       },
                     ]}
                   >
@@ -865,7 +893,8 @@ export default function MessageBubble({
                 <Text
                   style={[
                     styles.timeText,
-                    { color: isOwn ? "rgba(255,255,255)" : colors.textPrimary },
+                    // { color: isOwn ? "rgba(255,255,255)" : colors.textPrimary },
+                    { color: colors.textPrimary },
                   ]}
                 >
                   {formatTime(new Date(message.createdAt))}
@@ -947,7 +976,7 @@ const styles = StyleSheet.create({
     minWidth: 60,
   },
   bubbleOwn: {
-    backgroundColor: "#00d4aa",
+    // backgroundColor: "#66E5CC",
     borderBottomRightRadius: 4,
   },
   bubbleOther: {

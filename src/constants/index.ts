@@ -1,3 +1,5 @@
+import { Alert } from "react-native";
+
 // ─── Semantic palette (same hues, adapts per mode) ──────────────────────────
 const palette = {
   // primary: "#00d4aa",
@@ -19,6 +21,11 @@ const palette = {
 export const DarkColors = {
   ...palette,
   background: "#0a0a14",
+  chatBackground: "#202C33",
+  ownerChatBackground: "#005C4B",
+  sentCheckMarkColor: "#8696A0",
+  deliveredCheckMarkColor: "#8696A0",
+  readCheckMarkColor: "#53BDEB",
   surface: "#12121f",
   surfaceElevated: "#1a1a2e",
   surfaceHigh: "#22223a",
@@ -48,6 +55,11 @@ export const DarkColors = {
 export const LightColors = {
   ...palette,
   background: "#f5f7fa",
+  chatBackground: "#f5f7fa",
+  ownerChatBackground: "#DCF8C6",
+  sentCheckMarkColor: "#8696A0",
+  deliveredCheckMarkColor: "#8696A0",
+  readCheckMarkColor: "#53BDEB",
   surface: "#ffffff",
   surfaceElevated: "#f0f2f8",
   surfaceHigh: "#e8eaf2",
@@ -112,19 +124,21 @@ export const BorderRadius = {
   full: 9999,
 };
 
-export const API_BASE_URL = "http://172.27.42.173:5000/api";
+export const API_BASE_URL = "https://api.linkschat.com/api";
+// "http://172.27.57.108:5000/api";
 // "https://linkschat-backend-with-dashboard.onrender.com/api";
-//  "https://api.linkschat.com/api";
+//  "http://172.27.57.108:5000/api";
 // "https://linkschat-backend.onrender.com/api";
 // process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
 
-export const SOCKET_URL = "http://172.27.42.173:5000";
+export const SOCKET_URL = "https://api.linkschat.com";
+//  "http://172.27.57.108:5000";
 // "https://linkschat-backend-with-dashboard.onrender.com";
-// "https://api.linkschat.com/";
+// "http://172.27.57.108:5000";
 //  "https://linkschat-backend.onrender.com";
-
 // process.env.EXPO_PUBLIC_SOCKET_URL || "http://localhost:5000";
-export const STREAM_API_KEY = process.env.EXPO_PUBLIC_STREAM_API_KEY || "";
+// export const STREAM_API_KEY = process.env.EXPO_PUBLIC_STREAM_API_KEY || "wwzvk9atm57g";
+export const STREAM_API_KEY = "wwzvk9atm57g";
 export const EMOJI_REACTIONS = ["❤️", "😂", "😮", "😢", "👏", "🔥"];
 export const STATUS_COLORS = [
   "#1a1a2e",

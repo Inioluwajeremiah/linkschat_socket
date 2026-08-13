@@ -23,7 +23,15 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.READ_CONTACTS",
-        "android.permission.WRITE_CONTACTS"
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.WAKE_LOCK"
       ],
       "googleServicesFile": "./google-services.json",
       "package": "com.deejoft.linkschat"
@@ -117,7 +125,8 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to record reels."
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "@stream-io/video-react-native-sdk"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -126,9 +135,25 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "054788a4-bea4-4813-9a57-d2c643b2503a"
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "expo-sharing-extension",
+                  "bundleIdentifier": "com.deejoft.linkschat.expo-sharing-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.deejoft.linkschat"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "961262cd-0d12-43cb-9509-3c193b89e39b"
       }
-    },
-    "owner": "linkschat"
+    }
   }
 }

@@ -30,10 +30,11 @@ export default function OtpScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const toast = useToast();
-  const { userId, email } = useLocalSearchParams<{
+  const { userId, email, from } = useLocalSearchParams<{
     userId: string;
     email: string;
     phone: string;
+    from: string;
   }>();
   const dispatch = useAppDispatch();
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
@@ -147,7 +148,11 @@ export default function OtpScreen() {
         dispatch(
           setCredentials({ user, accessToken, refreshToken, streamToken })
         );
-        router.replace("/(tabs)");
+
+        router.replace({
+          pathname: from === "register" ? "/phone-contacts" : "/(tabs)",
+          params: { from: from },
+        });
       }
     } catch (err: unknown) {
       shake();

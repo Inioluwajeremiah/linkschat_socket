@@ -81,14 +81,14 @@
 //   //   return null;
 //   // }
 
-//   useEffect(() => {
-//     if (!callData) {
-//       if (router.canGoBack()) {
-//         router.back();
-//       }
-//       // router.back();
+// useEffect(() => {
+//   if (!callData) {
+//     if (router.canGoBack()) {
+//       router.back();
 //     }
-//   }, [callData, router]);
+//     // router.back();
+//   }
+// }, [callData, router]);
 
 //   if (!callData) {
 //     return (
@@ -418,22 +418,22 @@
 //     ringAnim(ring2Anim, 800).start();
 //   }, []);
 
-//   useEffect(() => {
-//     if (!callData) {
-//       if (router.canGoBack()) {
-//         router.back();
-//       }
-//     }
-//   }, [callData, router]);
-
+// useEffect(() => {
 //   if (!callData) {
-//     return (
-//       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-//         <Text>No call Data</Text>
-//         <Text>{JSON.stringify(callData)}</Text>
-//       </View>
-//     );
+//     if (router.canGoBack()) {
+//       router.back();
+//     }
 //   }
+// }, [callData, router]);
+
+// if (!callData) {
+//   return (
+//     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+//       <Text>No call Data</Text>
+//       <Text>{JSON.stringify(callData)}</Text>
+//     </View>
+//   );
+// }
 
 //   const isVideo = callData.type === "video";
 //   const isGroup = !!callData.isGroup;
@@ -708,14 +708,17 @@ import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { clearCall } from "../../store/slices/callSlice";
 import { socketService } from "../../services/socket";
 import { useTheme } from "../../context/ThemeContext";
+import { useContactNameResolver } from "@/hooks/useContactName";
+import { useRingtone } from "@/hooks/useRingTone";
 // import { useRingtone } from "../../hooks/useRingtone";
 
 export default function IncomingCallScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const resolveContact = useContactNameResolver();
   const { colors } = useTheme();
   const callData = useAppSelector((s) => s.call.incomingCall);
-  // useRingtone(!!callData);
+  useRingtone(!!callData);
 
   // Tracks whether WE are the ones clearing incomingCall (via accept/
   // reject), as opposed to it being cleared out from under us externally
@@ -822,9 +825,13 @@ export default function IncomingCallScreen() {
     router.back();
   };
 
-  const displayName = isGroup
-    ? callData.groupName || "Group call"
-    : callData.callerName;
+  const { displayName, isContact: isContactSaved } = isGroup
+    ? { displayName: callData.groupName || "Group call", isContact: false }
+    : resolveContact(callData?.callerPhone?.toString(), callData.callerName);
+
+  // const displayName = isGroup
+  //   ? callData.groupName || "Group call"
+  //   : callData.callerName;
   const displayAvatar = isGroup ? callData.groupAvatar : callData.callerAvatar;
 
   const initials = displayName

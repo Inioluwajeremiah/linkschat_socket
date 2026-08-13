@@ -620,7 +620,11 @@ export const statusApi = {
   reactToStatus: (statusId: string, emoji: string) =>
     api.post(`/status/${statusId}/react`, { emoji }),
 
-  deleteStatus: (statusId: string) => api.delete(`/status/${statusId}`),
+  deleteStatus: (statusId: string) =>
+    api.delete<{
+      success: boolean;
+      message: string;
+    }>(`/status/${statusId}`),
 };
 
 // Platform contacts (phone-matched)

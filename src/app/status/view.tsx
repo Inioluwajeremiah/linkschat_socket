@@ -11,26 +11,29 @@ import {
   Pressable,
   Modal,
   Keyboard,
+  Alert,
 } from "react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { chatApi, statusApi, uploadFileToS3 } from "../../services/api";
+import {
+  chatApi,
+  privacyApi,
+  statusApi,
+  uploadFileToS3,
+} from "../../services/api";
 import { socketService } from "../../services/socket";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { useStartCall } from "../../hooks/useStartCall";
 import { addOrUpdateChat } from "../../store/slices/chatSlice";
 import { useTheme } from "../../context/ThemeContext";
 import { useToast } from "../../context/ToastContext";
-import { StatusGroup, Status, User } from "../../types";
+import { StatusGroup, Status, User, Chat } from "../../types";
 import { formatDistanceToNow } from "../../utils/date";
 import * as Contacts from "expo-contacts";
 import StickerPicker from "@/components/StickerPicker";
@@ -42,6 +45,10 @@ import AudioRecorder, {
   RecordedSegment,
 } from "../chat/components/AudioRecorder";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import ZoomableImage from "./components/ZoomableImage";
+import StatusViewersSheet from "./components/StatusViewersSheet";
+import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
+import { useBlockedIdSet } from "@/hooks/useIsBlockedUser";
 
 const { width, height } = Dimensions.get("window");
 const EMOJI_REACTIONS = [
@@ -65,11 +72,26 @@ const STICKER_PICKER_COLORS = {
   textPrimary: "#fff",
 };
 
+// expo-video's underlying native player can be released out from under us
+// if this screen unmounts (e.g. the person navigates away) while a video
+// status is mid-playback. Any direct player.pause()/play()/currentTime
+// call made after that throws "Cannot use shared object that was already
+// released" — harmless (there's nothing left to control), so it's
+// swallowed here instead of surfacing as an error.
+const safePlayerCall = (fn: () => void) => {
+  try {
+    fn();
+  } catch {
+    // no-op — player was already torn down
+  }
+};
+
 export default function StatusViewScreen() {
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId?: string }>();
   const { user } = useAppSelector((s) => s.auth);
   const dispatch = useAppDispatch();
+  const blockedIds = useBlockedIdSet();
   const { startCall } = useStartCall();
   const { colors } = useTheme();
   const toast = useToast();
@@ -98,6 +120,7 @@ export default function StatusViewScreen() {
   );
 
   const [showMenu, setShowMenu] = useState(false);
+  const [showViewersSheet, setShowViewersSheet] = useState(false);
   const slideAnim = useRef(new Animated.Value(300)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
 
@@ -205,19 +228,6 @@ export default function StatusViewScreen() {
     load();
   }, []);
 
-  // const resolveDisplayName = (
-  //   user: User
-  // ): { name: string; isContact: boolean } => {
-  //   if (!user.phone) return { name: user.name, isContact: false };
-  //   const normalize = (p: string) => p.replace(/\D/g, "");
-  //   const suffix = normalize(user.phone).slice(-9);
-  //   const contactName = deviceContacts.get(suffix);
-  //   return {
-  //     name: contactName || user.name,
-  //     isContact: !!contactName,
-  //   };
-  // };
-
   const currentGroup = groups[groupIdx];
   const currentStatus: Status | undefined = currentGroup?.statuses[statusIdx];
 
@@ -230,6 +240,21 @@ export default function StatusViewScreen() {
   const privacySettings = (currentGroup?.user as any)?.privacySettings;
   const hideOnlineStatus = privacySettings?.hideOnlineStatus ?? false;
   const hideLastSeen = privacySettings?.hideLastSeen ?? false;
+
+  // userId -> emoji, so the viewers sheet can show who reacted alongside
+  // who viewed. Placed here (before the loading early-return below) since
+  // it's a hook — calling it conditionally would break the rules of hooks.
+  const reactionsByUserId = useMemo(() => {
+    const map: Record<string, string> = {};
+    const reactions = (currentStatus as any)?.reactions as
+      | { user: string | { _id: string }; emoji: string }[]
+      | undefined;
+    reactions?.forEach((r) => {
+      const uid = typeof r.user === "string" ? r.user : r.user?._id;
+      if (uid) map[uid] = r.emoji;
+    });
+    return map;
+  }, [currentStatus]);
 
   // Reflect whatever reaction *this* user already left on the current
   // status (if any) so the heart button and emoji row show the right state
@@ -263,6 +288,11 @@ export default function StatusViewScreen() {
   useEffect(() => {
     if (!currentStatus || loading || paused) return;
 
+    // Viewing your own status shouldn't count as a "view" — the backend
+    // now guards this authoritatively too, but skipping the call here
+    // avoids the wasted round trip.
+    const isOwnStatus = currentGroup?.user._id === user?._id;
+
     if (currentStatus.type === "video") {
       const start = currentStatus.trimStart || 0;
       const end =
@@ -270,8 +300,10 @@ export default function StatusViewScreen() {
         start + (currentStatus.mediaDuration || currentStatus.duration || 15);
 
       progressAnim.setValue(0);
-      player.currentTime = start;
-      player.play();
+      safePlayerCall(() => {
+        player.currentTime = start;
+      });
+      safePlayerCall(() => player.play());
 
       const sub = player.addListener("timeUpdate", (payload) => {
         const t = payload.currentTime;
@@ -279,20 +311,20 @@ export default function StatusViewScreen() {
         const fraction = Math.min(1, Math.max(0, (t - start) / span));
         progressAnim.setValue(fraction);
         if (t >= end) {
-          player.pause();
+          safePlayerCall(() => player.pause());
           advance();
         }
       });
 
-      statusApi.viewStatus(currentStatus._id).catch(() => {});
+      if (!isOwnStatus) statusApi.viewStatus(currentStatus._id).catch(() => {});
       return () => {
         sub?.remove();
-        player.pause();
+        safePlayerCall(() => player.pause());
       };
     }
 
     startProgress(currentStatus.duration || 5);
-    statusApi.viewStatus(currentStatus._id).catch(() => {});
+    if (!isOwnStatus) statusApi.viewStatus(currentStatus._id).catch(() => {});
     return () => {
       if (progressRef.current) progressRef.current.stop();
     };
@@ -323,7 +355,7 @@ export default function StatusViewScreen() {
 
   const pauseProgress = () => {
     if (currentStatus?.type === "video") {
-      player.pause();
+      safePlayerCall(() => player.pause());
     } else if (progressRef.current) {
       progressRef.current.stop();
     }
@@ -333,28 +365,59 @@ export default function StatusViewScreen() {
   const resumeProgress = () => {
     setPaused(false);
     if (currentStatus?.type === "video") {
-      player.play();
+      safePlayerCall(() => player.play());
     } else if (currentStatus) {
       startProgress(currentStatus.duration || 5);
     }
   };
 
+  // chatApi.createPrivateChat's response reflects the chat as it existed
+  // *before* the message below is sent — the actual send happens over the
+  // socket afterward, and nothing here was updating Redux with the new
+  // lastMessage, so the chat list only ever showed the reaction/reply
+  // after a manual refetch. This builds the same shape ChatItem reads
+  // (lastMessage.content/type/mediaName, chat.lastMessageAt) so the list
+  // updates instantly; whatever the server confirms later just overwrites
+  // this with equivalent data.
+  const buildOptimisticChat = (
+    chat: Chat,
+    message: { content?: string; type: string; mediaName?: string }
+  ) => {
+    const now = new Date().toISOString();
+    return {
+      ...chat,
+      lastMessage: {
+        _id: `temp-${Date.now()}`,
+        content: message.content || "",
+        type: message.type,
+        mediaName: message.mediaName,
+        isDeleted: false,
+        sender: user?._id,
+        createdAt: now,
+      } as any,
+      lastMessageAt: now,
+    };
+  };
+
   // Reactions get their own lightweight notice — separate from
   // sendStatusReply — because we don't want the "Sent to X" toast or the
   // sendingReply spinner firing every time someone taps a reaction emoji.
-  // It reuses the exact same createPrivateChat + message:send pipeline so
-  // it benefits from the same real-time delivery, offline push, and chat
-  // list update behavior replies already get.
+  // It reuses the exact same createPrivateChat + message:send pipeline.
   const notifyStatusReaction = async (emoji: string) => {
     if (!currentGroup) return;
     try {
       const chatRes = await chatApi.createPrivateChat(currentGroup.user._id);
       if (!chatRes.success) return;
-      dispatch(addOrUpdateChat(chatRes.data.chat));
+      const content = `${emoji} Reacted to your status`;
+      dispatch(
+        addOrUpdateChat(
+          buildOptimisticChat(chatRes.data.chat, { content, type: "text" })
+        )
+      );
       const tempId = `temp-${Date.now()}-${Math.random()}`;
       socketService.emit("message:send", {
         chatId: chatRes.data.chat._id,
-        content: `${emoji} Reacted to your status`,
+        content,
         type: "text",
         tempId,
       });
@@ -383,6 +446,64 @@ export default function StatusViewScreen() {
     }
   };
 
+  // ── Delete (own status only) ──────────────────────────────────────────
+  // Removes the status from local state immediately on success rather
+  // than refetching — advances to the next status in the group if any
+  // remain, drops the whole group and moves to the next person if that
+  // was the last one, or backs out of the viewer entirely if it was the
+  // only status left to show.
+  const deleteCurrentStatus = () => {
+    if (!currentStatus || !currentGroup) return;
+
+    Alert.alert(
+      "Delete status?",
+      "This will remove the status for everyone who can see it.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await statusApi.deleteStatus(currentStatus._id);
+              if (!res.success) {
+                toast.error("Couldn't delete status");
+                return;
+              }
+
+              const remaining = currentGroup.statuses.filter(
+                (s) => s._id !== currentStatus._id
+              );
+
+              if (remaining.length === 0) {
+                const remainingGroups = groups.filter((_, i) => i !== groupIdx);
+                setGroups(remainingGroups);
+                if (remainingGroups.length === 0) {
+                  router.back();
+                } else {
+                  setGroupIdx(Math.min(groupIdx, remainingGroups.length - 1));
+                  setStatusIdx(0);
+                }
+              } else {
+                const updatedGroups = [...groups];
+                updatedGroups[groupIdx] = {
+                  ...currentGroup,
+                  statuses: remaining,
+                };
+                setGroups(updatedGroups);
+                setStatusIdx(Math.min(statusIdx, remaining.length - 1));
+              }
+
+              toast.success("Status deleted");
+            } catch {
+              toast.error("Couldn't delete status");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // ── Reply (text / sticker) — sent as a real DM to the status owner,
   // same as WhatsApp: there's no separate "comments" system, a status
   // reply just opens/continues a private chat with that person. ───────────
@@ -399,7 +520,15 @@ export default function StatusViewScreen() {
     try {
       const chatRes = await chatApi.createPrivateChat(currentGroup.user._id);
       if (!chatRes.success) throw new Error("Failed to open chat");
-      dispatch(addOrUpdateChat(chatRes.data.chat));
+      dispatch(
+        addOrUpdateChat(
+          buildOptimisticChat(chatRes.data.chat, {
+            content: payload.content,
+            type: payload.type,
+            mediaName: payload.mediaName,
+          })
+        )
+      );
 
       const tempId = `temp-${Date.now()}-${Math.random()}`;
       socketService.emit("message:send", {
@@ -560,13 +689,17 @@ export default function StatusViewScreen() {
           style={StyleSheet.absoluteFillObject}
           player={player}
           nativeControls={false}
-          contentFit="cover"
+          contentFit="contain"
         />
       ) : currentStatus.type === "image" && currentStatus.mediaUrl ? (
-        <Image
-          source={{ uri: currentStatus.mediaUrl }}
-          style={StyleSheet.absoluteFillObject}
-          contentFit="cover"
+        <ZoomableImage
+          key={currentStatus._id}
+          uri={currentStatus.mediaUrl}
+          onSingleTapLeft={goBack}
+          onSingleTapRight={advance}
+          onZoomChange={(zoomed) =>
+            zoomed ? pauseProgress() : resumeProgress()
+          }
         />
       ) : (
         <View
@@ -658,7 +791,6 @@ export default function StatusViewScreen() {
                   currentGroup.user.phone,
                   currentGroup.user.name
                 ).isContact &&
-                  // {!resolveDisplayName(currentGroup.user as User).isContact &&
                   !isMyStatus && (
                     <View style={styles.notSavedChip}>
                       <Ionicons
@@ -686,17 +818,15 @@ export default function StatusViewScreen() {
                 </Text>
               </View>
             )}
-            {!isMyStatus && (
-              <TouchableOpacity
-                onPress={() => {
-                  pauseProgress();
-                  openMenu();
-                }}
-                style={styles.menuTriggerBtn}
-              >
-                <Ionicons name="ellipsis-vertical" size={20} color="#fff" />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              onPress={() => {
+                pauseProgress();
+                openMenu();
+              }}
+              style={styles.menuTriggerBtn}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color="#fff" />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.back()}
               style={styles.closeBtn}
@@ -707,8 +837,13 @@ export default function StatusViewScreen() {
         </View>
       </View>
 
-      {/* ── Tap zones: left = back, right = advance ── */}
-      <View style={styles.tapZones} pointerEvents="box-none">
+      {/* ── Tap zones: left = back, right = advance ──
+          Disabled for image statuses — ZoomableImage handles its own
+          single-tap (left/right), double-tap-to-zoom, and pinch/pan. */}
+      <View
+        style={styles.tapZones}
+        pointerEvents={currentStatus.type === "image" ? "none" : "box-none"}
+      >
         <Pressable
           style={styles.tapLeft}
           onPress={goBack}
@@ -748,11 +883,19 @@ export default function StatusViewScreen() {
         </View>
       )}
 
-      {/* ── Views + reactions (my status only) ── */}
+      {/* ── Views + reactions (my status only) — tap to see who viewed ── */}
       {isMyStatus &&
         (currentStatus.views.length > 0 ||
           ((currentStatus as any).reactions?.length ?? 0) > 0) && (
-          <View style={styles.viewsRow} pointerEvents="none">
+          <TouchableOpacity
+            style={styles.viewsRow}
+            activeOpacity={0.7}
+            disabled={currentStatus.views.length === 0}
+            onPress={() => {
+              pauseProgress();
+              setShowViewersSheet(true);
+            }}
+          >
             <Ionicons
               name="eye-outline"
               size={14}
@@ -771,8 +914,18 @@ export default function StatusViewScreen() {
                 </Text>
               </>
             )}
-          </View>
+          </TouchableOpacity>
         )}
+
+      <StatusViewersSheet
+        visible={showViewersSheet}
+        onClose={() => {
+          setShowViewersSheet(false);
+          resumeProgress();
+        }}
+        viewers={(currentStatus.views as any) || []}
+        reactionsByUserId={reactionsByUserId}
+      />
 
       {/* ── Bottom actions ── */}
       {!isMyStatus && (
@@ -1053,51 +1206,93 @@ export default function StatusViewScreen() {
             <View style={styles.menuDivider} />
 
             {/* Actions */}
-            {[
-              {
-                icon: "chatbubble-ellipses-outline",
-                label: "Send a Message",
-                sub: "Start or continue a conversation",
-                color: "#00d4aa",
-                bg: "rgba(0,212,170,0.1)",
-                onPress: async () => {
-                  try {
-                    const res = await chatApi.createPrivateChat(
-                      currentGroup.user._id
-                    );
-                    if (res.success) {
-                      router.replace(`/chat/${res.data.chat._id}`);
-                    }
-                  } catch {}
-                },
-              },
-              {
-                icon: "call-outline",
-                label: "Voice Call",
-                sub: "Start an audio call",
-                color: "#5b8dee",
-                bg: "rgba(91,141,238,0.1)",
-                onPress: () => startCall(currentGroup.user._id, "audio"),
-              },
-              {
-                icon: "videocam-outline",
-                label: "Video Call",
-                sub: "Start a video call",
-                color: "#ff6b9d",
-                bg: "rgba(255,107,157,0.1)",
-                onPress: () => startCall(currentGroup.user._id, "video"),
-              },
-              {
-                icon: "person-outline",
-                label: "View Profile",
-                sub: "See full contact information",
-                color: "#ffc107",
-                bg: "rgba(255,193,7,0.1)",
-                onPress: () => {
-                  router.push(`/profile/${currentGroup.user._id}` as any);
-                },
-              },
-            ].map(({ icon, label, sub, color, bg, onPress }, i, arr) => (
+            {(isMyStatus
+              ? [
+                  {
+                    icon: "trash-outline",
+                    label: "Delete Status",
+                    sub: "Remove this status for everyone",
+                    color: "#ff4757",
+                    bg: "rgba(255,71,87,0.12)",
+                    onPress: deleteCurrentStatus,
+                  },
+                ]
+              : [
+                  {
+                    icon: "chatbubble-ellipses-outline",
+                    label: "Send a Message",
+                    sub: "Start or continue a conversation",
+                    color: "#00d4aa",
+                    bg: "rgba(0,212,170,0.1)",
+                    onPress: async () => {
+                      try {
+                        const res = await chatApi.createPrivateChat(
+                          currentGroup.user._id
+                        );
+                        if (res.success) {
+                          router.replace(`/chat/${res.data.chat._id}`);
+                        }
+                      } catch {}
+                    },
+                  },
+                  {
+                    icon: "call-outline",
+                    label: "Voice Call",
+                    sub: "Start an audio call",
+                    color: "#5b8dee",
+                    bg: "rgba(91,141,238,0.1)",
+                    onPress: () => startCall(currentGroup.user._id, "audio"),
+                  },
+                  {
+                    icon: "videocam-outline",
+                    label: "Video Call",
+                    sub: "Start a video call",
+                    color: "#ff6b9d",
+                    bg: "rgba(255,107,157,0.1)",
+                    onPress: () => startCall(currentGroup.user._id, "video"),
+                  },
+                  {
+                    icon: "person-outline",
+                    label: "View Profile",
+                    sub: "See full contact information",
+                    color: "#ffc107",
+                    bg: "rgba(255,193,7,0.1)",
+                    onPress: () => {
+                      router.push(`/profile/${currentGroup.user._id}` as any);
+                    },
+                  },
+                  {
+                    icon: blockedIds.has(currentGroup.user._id)
+                      ? "checkmark-circle-outline"
+                      : "ban-outline",
+                    label: blockedIds.has(currentGroup.user._id)
+                      ? "Unblock"
+                      : "Block",
+                    sub: blockedIds.has(currentGroup.user._id)
+                      ? "Allow messages, calls, and statuses again"
+                      : "They won't be able to message, call, or see your status",
+                    color: "#ff4757",
+                    bg: "rgba(255,71,87,0.1)",
+                    onPress: async () => {
+                      const targetId = currentGroup.user._id;
+                      try {
+                        if (blockedIds.has(targetId)) {
+                          await privacyApi.unblockUser(targetId);
+                          dispatch(removeBlocked(targetId));
+                          toast.success("Unblocked");
+                        } else {
+                          await privacyApi.blockUser(targetId);
+                          dispatch(addBlocked(targetId));
+                          toast.success("Blocked");
+                          router.back();
+                        }
+                      } catch {
+                        toast.error("Action failed");
+                      }
+                    },
+                  },
+                ]
+            ).map(({ icon, label, sub, color, bg, onPress }, i, arr) => (
               <TouchableOpacity
                 key={label}
                 style={[

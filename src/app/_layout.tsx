@@ -16,6 +16,7 @@ import { loadOnboardingState } from "@/store/slices/onboardingslice";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
 import { loadDeviceContacts } from "@/store/slices/contactsSlice";
+import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 
 function SocketInitializer() {
   useSocket();
@@ -26,7 +27,10 @@ function PushInitializer() {
   usePushNotifications();
   return null;
 }
-
+function BlockedUsersInitializer() {
+  useBlockedUsers();
+  return null;
+}
 function ContactsLoader() {
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((s) => s.auth);
@@ -65,10 +69,11 @@ function AppNavigator() {
   return (
     <>
       <KeyboardProvider>
+        <ContactsLoader />
         <SocketInitializer />
         <PushInitializer />
         <ToastRefWirer />
-        <ContactsLoader />
+        <BlockedUsersInitializer />
         <StatusBar style={colors.statusBar} />
         <Stack
           screenOptions={{

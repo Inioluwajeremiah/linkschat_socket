@@ -47,7 +47,7 @@ export function useContactNameResolver() {
 
     return contactName
       ? { displayName: contactName, isContact: true }
-      : { displayName: "", isContact: false };
+      : { displayName: phone, isContact: false };
     // : { displayName: fallbackName || "Unknown", isContact: false };
   };
 

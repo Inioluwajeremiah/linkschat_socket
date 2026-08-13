@@ -124,6 +124,7 @@ export default function LoginScreen() {
       flex: 1,
       justifyContent: "center",
       paddingHorizontal: Spacing.xl,
+      paddingBottom: Spacing.xl,
     },
     orb: {
       position: "absolute",

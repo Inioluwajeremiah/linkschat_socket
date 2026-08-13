@@ -86,7 +86,11 @@ export default function RegisterScreen() {
           () =>
             router.push({
               pathname: "/(auth)/otp",
-              params: { userId: res.data.userId, email: res.data.email },
+              params: {
+                userId: res.data.userId,
+                email: res.data.email,
+                from: "register",
+              },
             }),
           700
         );
@@ -135,7 +139,13 @@ export default function RegisterScreen() {
           automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
           showsVerticalScrollIndicator={false}
         > */}
-      <KeyboardAwareScrollView>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ paddingVertical: Spacing.xl }}
+        style={{
+          flex: 1,
+          paddingHorizontal: Spacing.xl,
+        }}
+      >
         <TouchableOpacity
           style={[
             styles.backBtn,

@@ -241,11 +241,13 @@ import { useToast } from "../context/ToastContext";
 import { useIsBlocked } from "@/hooks/useIsBlockedUser";
 import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
 import { IconButtonProps } from "@expo/vector-icons/build/createIconSet";
+import { useContactNameResolver } from "@/hooks/useContactName";
 
 interface QuickActionUser {
   _id: string;
   name: string;
   avatar?: string;
+  phone?: string;
 }
 
 interface Props {
@@ -262,12 +264,15 @@ export default function UserActionSheet({ user, onClose, colors }: Props) {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const toast = useToast();
+  const resolveContact = useContactNameResolver();
   const { startCall, callLoading } = useStartCall();
   const isBlocked = useIsBlocked(user?._id);
 
   if (!user) return null;
 
-  const initials = user.name
+  const { displayName } = resolveContact(user.phone, user.name);
+
+  const initials = displayName
     .split(" ")
     .map((w) => w[0])
     .join("")
@@ -305,11 +310,11 @@ export default function UserActionSheet({ user, onClose, colors }: Props) {
       if (isBlocked) {
         await privacyApi.unblockUser(user._id);
         dispatch(removeBlocked(user._id));
-        toast.success(`${user.name} unblocked`);
+        toast.success(`${displayName} unblocked`);
       } else {
         await privacyApi.blockUser(user._id);
         dispatch(addBlocked(user._id));
-        toast.success(`${user.name} blocked`);
+        toast.success(`${displayName} blocked`);
       }
       onClose();
     } catch {
@@ -393,7 +398,7 @@ export default function UserActionSheet({ user, onClose, colors }: Props) {
               </LinearGradient>
             )}
             <Text style={[styles.name, { color: colors.textPrimary }]}>
-              {user.name}
+              {displayName}
             </Text>
           </View>
 

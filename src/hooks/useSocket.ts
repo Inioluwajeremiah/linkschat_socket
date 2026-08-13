@@ -175,6 +175,15 @@ export const useSocket = () => {
   const { accessToken, isAuthenticated } = useAppSelector((s) => s.auth);
   const initializedRef = useRef(false);
 
+  // Read fresh on every call:incoming via a ref so the socket listener
+  // (registered once) always sees the current blocked list without
+  // needing to be re-registered every time it changes.
+  const blockedIdsRef = useRef<string[]>([]);
+  const blockedIds = useAppSelector((s) => s.blocked.blockedIds);
+  useEffect(() => {
+    blockedIdsRef.current = blockedIds;
+  }, [blockedIds]);
+
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
     if (initializedRef.current) return;
@@ -240,6 +249,7 @@ export const useSocket = () => {
         type: "audio" | "video";
         callerId: string;
         callerName: string;
+        callerPhone: number;
         callerAvatar?: string;
         chatId?: string;
         // Sent by the backend when call:initiate was placed on a group
@@ -249,6 +259,16 @@ export const useSocket = () => {
         groupName?: string;
         groupAvatar?: string;
       }) => {
+        // Blocked callers get nothing — no ring, no vibration, no
+        // notification, no navigation. WhatsApp doesn't tell a blocked
+        // user they were blocked; the call just never seems to connect
+        // on their end. This check has to live here, at the single
+        // global entry point for all incoming calls, rather than in
+        // IncomingCallScreen — by the time that screen would mount, the
+        // ringtone/haptics/notification would have already fired.
+        if (blockedIdsRef.current.includes(data.callerId)) {
+          return;
+        }
         // 1. Store in Redux
         dispatch(setIncomingCall(data));
 
