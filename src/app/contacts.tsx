@@ -508,9 +508,7 @@ export default function ContactsScreen() {
     .toUpperCase();
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -890,7 +888,7 @@ export default function ContactsScreen() {
           </Animated.View>
         </Modal>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -135,6 +135,8 @@ import { SOCKET_URL } from "../constants";
 class SocketService {
   private socket: Socket | null = null;
   private token: string | null = null;
+  private statusListeners = new Set<() => void>();
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   connect(token: string): Socket {
     if (this.socket?.connected && this.token === token) {
@@ -147,34 +149,95 @@ class SocketService {
 
     this.token = token;
     this.socket = io(SOCKET_URL, {
-      auth: { token },
+      // A function, so every (re)connect attempt sends the CURRENT token —
+      // setToken() can swap in a refreshed one without rebuilding the socket.
+      auth: (cb) => cb({ token: this.token }),
       transports: ["websocket"],
       reconnection: true,
-      reconnectionAttempts: 10,
+      // Never give up. With a finite cap (it was 10, ~45s) a spell of poor
+      // signal left the socket permanently dead until the app was restarted.
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
     });
 
-    this.socket.on("connect", () => {
-      // console.log("✅ Socket connected:", this.socket?.id);
+    const socket = this.socket;
+
+    socket.on("connect", () => {
+      this.notifyStatus();
     });
 
-    this.socket.on("disconnect", (reason) => {
-      // console.log("❌ Socket disconnected:", reason);
+    socket.on("disconnect", () => {
+      this.notifyStatus();
     });
 
-    this.socket.on("connect_error", (error) => {
-      // console.error("Socket connection error:", error.message);
+    socket.on("connect_error", (error) => {
+      this.notifyStatus();
+      // When the server's handshake middleware rejects us, socket.io does
+      // NOT reconnect on its own (socket.active is false) — so a transient
+      // server-side hiccup would leave the socket dead. Retry manually.
+      // "Invalid token" is different: retrying can't help, the session
+      // validator refreshes the token and calls setToken()/resume().
+      if (!socket.active && error.message !== "Invalid token") {
+        this.scheduleRetry(socket);
+      }
     });
 
-    return this.socket;
+    return socket;
+  }
+
+  private scheduleRetry(socket: Socket) {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (this.socket === socket && !socket.connected) socket.connect();
+    }, 3000);
+  }
+
+  private notifyStatus() {
+    this.statusListeners.forEach((cb) => cb());
+  }
+
+  // Subscribe to connect/disconnect changes (used by the connection banner).
+  onStatusChange(cb: () => void): () => void {
+    this.statusListeners.add(cb);
+    return () => {
+      this.statusListeners.delete(cb);
+    };
+  }
+
+  // Swap in a refreshed access token for the next (re)connect attempt.
+  setToken(token: string): void {
+    this.token = token;
+  }
+
+  // Drop the connection while the app is in the background, keeping the
+  // socket object and its listeners so resume() can bring it straight back.
+  // While a socket is open the server treats the user as ONLINE and skips
+  // push notifications — so an app sitting in the background with a still-
+  // open socket never gets notified of new messages.
+  pause(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.socket?.disconnect();
+  }
+
+  resume(): void {
+    if (this.socket && !this.socket.connected) this.socket.connect();
   }
 
   disconnect(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     this.socket?.disconnect();
     this.socket = null;
     this.token = null;
+    this.notifyStatus();
   }
 
   getSocket(): Socket | null {
@@ -189,6 +252,28 @@ class SocketService {
     if (this.socket?.connected) {
       this.socket.emit(event, data);
     }
+  }
+
+  // Emit and wait for the server's acknowledgement. Rejects if the socket
+  // isn't connected or no ack arrives within `timeoutMs` (a dropped
+  // connection mid-send looks exactly like that). Unlike emit(), a failure is
+  // never silent — the offline outbox depends on that.
+  emitWithAck<T = any>(
+    event: string,
+    data: unknown,
+    timeoutMs = 20000
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      if (!this.socket?.connected) {
+        reject(new Error("Socket not connected"));
+        return;
+      }
+      this.socket
+        .timeout(timeoutMs)
+        .emit(event, data, (err: Error | null, response: T) =>
+          err ? reject(err) : resolve(response)
+        );
+    });
   }
 
   on(event: string, callback: (...args: unknown[]) => void): void {

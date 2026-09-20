@@ -44,7 +44,8 @@ export const BUNDLED_RINGTONES: Ringtone[] = [
 // once you've added at least one bundled ringtone. Left null until then;
 // resolveRingtone() and useRingtone() both handle a null default fine
 // (no ringtone audio plays, but the call still vibrates).
-export const DEFAULT_RINGTONE_ID: string | null = null;
+// export const DEFAULT_RINGTONE_ID: string | null = null;
+export const DEFAULT_RINGTONE_ID: string | null = "1";
 
 export type StoredRingtoneSelection =
   | { kind: "bundled"; id: string }

@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import * as Sharing from "expo-sharing";
+import { openFile } from "@/utils/openFile";
 
 export default function DocMessage({
   id,
@@ -38,12 +38,9 @@ export default function DocMessage({
 
   const handlePress = async () => {
     if (status === "downloaded" && localUri) {
-      // Already have it locally — open/share it
+      // Already have it locally — open it in a viewer app
       try {
-        // const Sharing = await import("expo-sharing");
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(localUri);
-        }
+        await openFile(localUri, name);
       } catch (e) {
         // console.warn("Failed to open document", e);
       }

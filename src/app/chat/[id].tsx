@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
-  Dimensions,
 } from "react-native";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -26,6 +25,7 @@ import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { useIsBlocked } from "@/hooks/useIsBlockedUser";
 import {
   setMessages,
+  mergeMessages,
   addMessage,
   updateMessage,
   removeMessage,
@@ -34,10 +34,16 @@ import {
 import {
   chatApi,
   messageActionsApi,
-  uploadFileToS3,
   searchApi,
 } from "../../services/api";
 import { socketService } from "../../services/socket";
+import {
+  enqueueMessage,
+  retryMessage,
+  discardMessage,
+  type EnqueueInput,
+} from "../../services/outbox";
+import { loadCachedMessages } from "../../services/chatCache";
 import { Message, User, Chat, ActivityStatus, UserActivity } from "../../types";
 import { formatDateSeparator, formatDistanceToNow } from "../../utils/date";
 import MessageBubble from "./components/MessageBubble";
@@ -48,7 +54,7 @@ import AttachmentSheet, {
 import AudioRecorder, { RecordedSegment } from "./components/AudioRecorder";
 import ForwardSheet from "./components/ForwardSheet";
 import { createSelector } from "@reduxjs/toolkit";
-import { RootState } from "@/store";
+import { RootState, store } from "@/store";
 import MediaViewerModal from "./components/MediaViewerModal";
 import { markMessagesRead } from "../../store/slices/chatSlice";
 import { Spacing } from "@/constants";
@@ -58,6 +64,7 @@ import { StickerRef, encodeBundledRef } from "@/constants/stickers";
 import { useAnimatedKeyboard } from "react-native-keyboard-controller";
 import { useDerivedValue } from "react-native-reanimated";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import OngoingCallBanner from "@/components/OngoingCallBanner";
 
 // ─── Date separator ───────────────────────────────────────────────────────────
 function DateSeparator({ date, colors }: { date: string; colors: any }) {
@@ -95,6 +102,64 @@ const sepStyles = StyleSheet.create({
 });
 
 // ─── Reply bar ────────────────────────────────────────────────────────────────
+// function ReplyBar({
+//   replyTo,
+//   onCancel,
+//   colors,
+// }: {
+//   replyTo: Message;
+//   onCancel: () => void;
+//   colors: any;
+// }) {
+//   const sender = replyTo.sender as User;
+//   const preview =
+//     replyTo.type === "image"
+//       ? "📷 Photo"
+//       : replyTo.type === "audio"
+//       ? "🎵 Voice note"
+//       : replyTo.type === "video"
+//       ? "🎥 Video"
+//       : replyTo.content?.slice(0, 80) || "";
+//   const slideAnim = useRef(new Animated.Value(-60)).current;
+
+//   useEffect(() => {
+//     Animated.spring(slideAnim, {
+//       toValue: 0,
+//       useNativeDriver: true,
+//       tension: 280,
+//       friction: 22,
+//     }).start();
+//   }, []);
+
+//   return (
+//     <Animated.View
+//       style={[
+//         replyBarStyles.wrap,
+//         {
+//           backgroundColor: colors.surface,
+//           borderTopColor: colors.border,
+//           transform: [{ translateY: slideAnim }],
+//         },
+//       ]}
+//     >
+//       <View style={replyBarStyles.indicator} />
+//       <View style={replyBarStyles.content}>
+//         <Text style={replyBarStyles.name}>{sender?.name || "Unknown"}</Text>
+//         <Text
+//           style={[replyBarStyles.preview, { color: colors.textSecondary }]}
+//           numberOfLines={1}
+//         >
+//           {preview}
+//         </Text>
+//       </View>
+//       <TouchableOpacity onPress={onCancel} style={replyBarStyles.close}>
+//         <Ionicons name="close" size={18} color={colors.textSecondary} />
+//       </TouchableOpacity>
+//     </Animated.View>
+//   );
+// }
+
+// ─── Reply bar ────────────────────────────────────────────────────────────────
 function ReplyBar({
   replyTo,
   onCancel,
@@ -104,7 +169,12 @@ function ReplyBar({
   onCancel: () => void;
   colors: any;
 }) {
+  const resolveContact = useContactNameResolver();
   const sender = replyTo.sender as User;
+  const { displayName: senderDisplayName } = resolveContact(
+    sender?.phone,
+    sender?.name
+  );
   const preview =
     replyTo.type === "image"
       ? "📷 Photo"
@@ -137,7 +207,9 @@ function ReplyBar({
     >
       <View style={replyBarStyles.indicator} />
       <View style={replyBarStyles.content}>
-        <Text style={replyBarStyles.name}>{sender?.name || "Unknown"}</Text>
+        <Text style={replyBarStyles.name}>
+          {senderDisplayName || "Unknown"}
+        </Text>
         <Text
           style={[replyBarStyles.preview, { color: colors.textSecondary }]}
           numberOfLines={1}
@@ -259,32 +331,19 @@ function UserActivityIndicator({
   );
 }
 
-// ─── Upload progress indicator ────────────────────────────────────────────────
-function UploadingIndicator({ colors }: { colors: any }) {
-  return (
-    <View
-      style={[
-        upStyles.wrap,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
-    >
-      <ActivityIndicator color="#00d4aa" size="small" />
-      <Text style={[upStyles.text, { color: colors.textSecondary }]}>
-        Uploading…
-      </Text>
-    </View>
-  );
-}
-const upStyles = StyleSheet.create({
-  wrap: {
+// "Not sent · Retry · Delete" line under a failed outgoing message.
+const sendFailStyles = StyleSheet.create({
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "flex-end",
+    gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
+    marginTop: -2,
+    marginBottom: 6,
   },
-  text: { fontSize: 13 },
+  label: { color: "#ef4444", fontSize: 12, flexShrink: 1 },
+  action: { color: "#00b090", fontSize: 12, fontWeight: "700" },
 });
 
 const EMPTY_MESSAGES: Message[] = [];
@@ -330,10 +389,13 @@ export default function ChatScreen() {
   );
   const insets = useSafeAreaInsets();
 
-  const [chatInfo, setChatInfo] = useState<Chat | null>(null);
+  // Seeded from the chat list so the header (name, avatar, members) renders
+  // immediately — and stays right offline, when getChatInfo can't complete.
+  const [chatInfo, setChatInfo] = useState<Chat | null>(
+    () => store.getState().chat.chats.find((c) => c._id === chatId) ?? null
+  );
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
@@ -407,6 +469,29 @@ export default function ChatScreen() {
   const pendingReadIdsRef = useRef<Set<string>>(new Set());
   const readFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Catch up after a reconnect ─────────────────────────────────────────────
+  // Anything sent to this chat while we were offline/backgrounded reached us
+  // only as a push notification. Fetch the latest page and merge it in, so it
+  // shows without leaving and re-opening the chat.
+  useEffect(() => {
+    if (highlightMessageId) return;
+    let wasConnected = socketService.isConnected();
+    return socketService.onStatusChange(() => {
+      const connected = socketService.isConnected();
+      if (connected && !wasConnected) {
+        chatApi
+          .getMessages(chatId, 1)
+          .then((res) => {
+            if (res.success) {
+              dispatch(mergeMessages({ chatId, messages: res.data.messages }));
+            }
+          })
+          .catch(() => {});
+      }
+      wasConnected = connected;
+    });
+  }, [chatId, highlightMessageId]);
+
   // ── Load initial data ──────────────────────────────────────────────────────
   useEffect(() => {
     readHandledRef.current = new Set();
@@ -415,6 +500,27 @@ export default function ChatScreen() {
 
     console.log("chatid  ==>>> ", chatId);
     const loadNormal = async () => {
+      // Offline reading: show what was saved on this device straight away
+      // (and keep showing it if the network request below fails). Skipped if
+      // messages are already on screen, e.g. a fast network response beat
+      // the disk read — never let older saved data overwrite fresher data.
+      let haveLocalMessages = false;
+      try {
+        const cached = await loadCachedMessages(chatId);
+        const onScreen = (store.getState().chat.messages[chatId] ?? []).some(
+          (m) => !m._status
+        );
+        if (onScreen) {
+          haveLocalMessages = true;
+        } else if (cached?.length) {
+          dispatch(setMessages({ chatId, messages: cached }));
+          haveLocalMessages = true;
+          setLoading(false);
+        }
+      } catch {
+        // A missing/corrupt cache just means nothing to show early.
+      }
+
       try {
         const [chatRes, msgRes] = await Promise.all([
           chatApi.getChatInfo(chatId),
@@ -455,7 +561,10 @@ export default function ChatScreen() {
       } catch (err) {
         console.log("loadnormal chat error ===>>> ", err);
 
-        toast.error("Failed to load chat");
+        // With saved messages on screen a failed refresh isn't news (the
+        // connection banner already says why), so only complain when there is
+        // genuinely nothing to show.
+        if (!haveLocalMessages) toast.error("Failed to load chat");
       } finally {
         setLoading(false);
       }
@@ -717,54 +826,18 @@ export default function ChatScreen() {
     }, 1500);
   };
 
-  const emitMessage = (payload: {
-    content: string;
-    type: string;
-    mediaUrl?: string;
-    mediaName?: string;
-    mediaSize?: number;
-    mediaDuration?: number;
-    replyTo?: string;
-    localUri?: string;
-  }) => {
-    const tempId = `temp-${Date.now()}-${Math.random()}`;
-
-    const optimisticMessage: Message = {
-      _id: tempId,
-      tempId,
-      chatId,
-      sender: me,
-      content: payload.content,
-      type: payload.type,
-      mediaUrl: payload.localUri || payload.mediaUrl,
-      mediaName: payload.mediaName,
-      mediaSize: payload.mediaSize,
-      mediaDuration: payload.mediaDuration,
-      replyTo: replyTo || undefined,
-      createdAt: new Date().toISOString(),
-      readBy: [],
-      _uploading: !!payload.localUri,
-    } as any;
-
-    dispatch(addMessage({ chatId, message: optimisticMessage }));
+  // EVERY send goes through the offline outbox: the message (and any
+  // attachment — photo, video, voice note, document, sticker, GIF) is saved
+  // locally, shown in the chat at once, and delivered as soon as there is a
+  // connection. Nothing is dropped when the network is down.
+  const queueMessage = (input: Omit<EnqueueInput, "chatId" | "replyTo">) => {
+    const quoted = replyTo;
+    setReplyTo(null);
     setTimeout(
       () => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }),
       80
     );
-
-    socketService.emit("message:send", {
-      chatId,
-      content: payload.content,
-      type: payload.type,
-      mediaUrl: payload.mediaUrl,
-      mediaName: payload.mediaName,
-      mediaSize: payload.mediaSize,
-      mediaDuration: payload.mediaDuration,
-      replyTo,
-      tempId,
-    });
-
-    setReplyTo(null);
+    return enqueueMessage({ ...input, chatId, replyTo: quoted });
   };
 
   const sendText = async () => {
@@ -790,44 +863,27 @@ export default function ChatScreen() {
           chatId,
         });
       } catch {
-        toast.error("Failed to edit");
+        toast.error("Failed to edit", "Editing needs an internet connection.");
       }
       setEditingMessage(null);
       return;
     }
 
-    setSending(true);
-    emitMessage({ content, type: "text" });
-    setSending(false);
+    void queueMessage({ content, type: "text" });
   };
 
-  const handleAttachment = async (result: AttachmentResult) => {
-    setUploading(true);
-    socketService.emit("activity:start", { chatId, status: "uploading" });
-    try {
-      const mimeType = result.mimeType || "application/octet-stream";
-      const publicUrl = await uploadFileToS3(
-        result.uri,
-        result.name || "file",
-        mimeType,
-        result.type
-      );
-      emitMessage({
-        content: text,
-        type: result.type,
-        mediaUrl: publicUrl,
-        mediaName: result?.name || "",
-        mediaSize: result?.size || 0,
-        mediaDuration: result?.duration || 0,
-        localUri: result.uri,
-      });
-    } catch (err) {
-      toast.error("Failed to send file");
-    } finally {
-      setUploading(false);
-      setReplyTo(null);
-      socketService.emit("activity:stop", { chatId, status: "uploading" });
-    }
+  const handleAttachment = (result: AttachmentResult) => {
+    void queueMessage({
+      content: text,
+      type: result.type,
+      media: {
+        uri: result.uri,
+        mimeType: result.mimeType,
+        name: result.name || "",
+        size: result.size || 0,
+        duration: result.duration || 0,
+      },
+    });
   };
 
   const handleVoiceNote = async (
@@ -837,39 +893,25 @@ export default function ChatScreen() {
     setShowRecorder(false);
     if (segments.length === 0) return;
 
-    setUploading(true);
-    socketService.emit("activity:start", { chatId, status: "uploading" });
-    try {
-      for (const segment of segments) {
-        const publicUrl = await uploadFileToS3(
-          segment.uri,
-          "voice.m4a",
-          "audio/mp4",
-          "audio"
-        );
-
-        emitMessage({
-          content: text,
-          type: "audio",
-          mediaUrl: publicUrl,
-          mediaDuration: Math.round(segment.durationMs / 1000),
-          localUri: segment.uri,
-        });
-      }
-    } catch (err) {
-      toast.error("Failed to send voice note");
-    } finally {
-      setUploading(false);
-      setReplyTo(null);
-      socketService.emit("activity:stop", { chatId, status: "uploading" });
+    for (const segment of segments) {
+      await queueMessage({
+        content: text,
+        type: "audio",
+        media: {
+          uri: segment.uri,
+          mimeType: "audio/mp4",
+          name: "voice.m4a",
+          duration: Math.round(segment.durationMs / 1000),
+        },
+      });
     }
   };
 
-  const handleStickerPick = async (ref: StickerRef) => {
+  const handleStickerPick = (ref: StickerRef) => {
     setShowStickers(false);
     if (ref.kind === "bundled") {
       // No upload needed — both apps already have this asset bundled in.
-      emitMessage({
+      void queueMessage({
         content: "",
         type: "sticker",
         mediaUrl: encodeBundledRef(ref.packId, ref.stickerId),
@@ -877,27 +919,15 @@ export default function ChatScreen() {
       return;
     }
     // Custom sticker: behaves like a normal image send, just tagged as a sticker.
-    setUploading(true);
-    socketService.emit("activity:start", { chatId, status: "uploading" });
-    try {
-      const publicUrl = await uploadFileToS3(
-        ref.localUri,
-        "sticker.jpg",
-        "image/jpeg",
-        "image"
-      );
-      emitMessage({
-        content: "",
-        type: "sticker",
-        mediaUrl: publicUrl,
-        localUri: ref.localUri,
-      });
-    } catch {
-      toast.error("Failed to send sticker");
-    } finally {
-      setUploading(false);
-      socketService.emit("activity:stop", { chatId, status: "uploading" });
-    }
+    void queueMessage({
+      content: "",
+      type: "sticker",
+      media: {
+        uri: ref.localUri,
+        mimeType: "image/jpeg",
+        name: "sticker.jpg",
+      },
+    });
   };
 
   const handleEmojiPick = (emoji: string) => {
@@ -1102,117 +1132,6 @@ export default function ChatScreen() {
       style={[styles.root, { backgroundColor: colors.background }]}
     >
       {/* Header */}
-      {/* <View style={{ backgroundColor: colors.surface }}>
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.headerInfo}
-            onPress={() =>
-              isGroup
-                ? router.push(`/group-info/${chatId}`)
-                : router.push(`/profile/${otherParticipant?.user._id}`)
-            }
-            activeOpacity={0.75}
-          >
-            <View style={styles.headerAvatarWrap}>
-              {displayAvatar ? (
-                <Image
-                  source={{ uri: displayAvatar }}
-                  style={styles.headerAvatar}
-                  contentFit="cover"
-                />
-              ) : (
-                <LinearGradient
-                  colors={["#00d4aa", "#5b8dee"]}
-                  style={styles.headerAvatarFb}
-                >
-                  <Text style={styles.headerInitials}>{initials}</Text>
-                </LinearGradient>
-              )}
-              {!isGroup && (
-                <View
-                  style={[
-                    styles.onlineDot,
-                    {
-                      backgroundColor: isOtherOnline ? "#00d4aa" : "#555577",
-                      borderColor: colors.surface,
-                    },
-                  ]}
-                />
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[styles.headerName, { color: colors.textPrimary }]}
-                numberOfLines={1}
-              >
-                {displayName || "…"}
-              </Text>
-              <Text
-                style={[
-                  styles.headerStatus,
-                  { color: isOtherTyping ? "#00d4aa" : colors.textSecondary },
-                ]}
-              >
-                {isOtherTyping
-                  ? "typing…"
-                  : isGroup
-                  ? `${chatInfo?.participants.length || 0} members`
-                  : isOtherOnline
-                  ? "Online"
-                  : "Offline"}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <View style={styles.headerActions}>
-            {!isGroup && (
-              <>
-                <TouchableOpacity
-                  style={styles.hBtn}
-                  onPress={() => router.push(`/call/${chatId}?type=audio`)}
-                >
-                  <Ionicons
-                    name="call-outline"
-                    size={20}
-                    color={colors.textPrimary}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.hBtn}
-                  onPress={() => router.push(`/call/${chatId}?type=video`)}
-                >
-                  <Ionicons
-                    name="videocam-outline"
-                    size={20}
-                    color={colors.textPrimary}
-                  />
-                </TouchableOpacity>
-              </>
-            )}
-            <TouchableOpacity
-              style={styles.hBtn}
-              onPress={() =>
-                isGroup
-                  ? router.push(`/group-info/${chatId}`)
-                  : router.push(`/profile/${otherParticipant?.user._id}`)
-              }
-            >
-              <Ionicons
-                name="ellipsis-vertical"
-                size={20}
-                color={colors.textPrimary}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View> */}
 
       <View style={{ backgroundColor: colors.surface }}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -1322,6 +1241,7 @@ export default function ChatScreen() {
         </View>
       </View>
 
+      <OngoingCallBanner chatId={chatId} />
       {/* Messages list */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -1388,7 +1308,7 @@ export default function ChatScreen() {
                 !isOwn &&
                 (nextSenderId !== (msg.sender as User)?._id || !nextMsg);
 
-              const bubble = (
+              const bubbleCore = (
                 <MessageBubble
                   message={msg}
                   isOwn={isOwn}
@@ -1396,6 +1316,10 @@ export default function ChatScreen() {
                   myId={me?._id || ""}
                   colors={colors}
                   onLongPress={(m, anchor) => {
+                    // A message still in the outbox has no server id yet, so
+                    // react/reply/delete/forward would all hit the API with a
+                    // placeholder id. Failed ones have their own Retry/Delete.
+                    if (m._status) return;
                     setMenuMessage(m);
                     setMenuAnchor(anchor);
                   }}
@@ -1406,6 +1330,33 @@ export default function ChatScreen() {
                   }
                 />
               );
+
+              const bubble =
+                isOwn && msg._status === "failed" ? (
+                  <View>
+                    {bubbleCore}
+                    <View style={sendFailStyles.row}>
+                      <Ionicons name="alert-circle" size={14} color="#ef4444" />
+                      <Text style={sendFailStyles.label} numberOfLines={1}>
+                        {msg._error || "Not sent"}
+                      </Text>
+                      <Text
+                        style={sendFailStyles.action}
+                        onPress={() => retryMessage(msg.tempId ?? msg._id)}
+                      >
+                        Retry
+                      </Text>
+                      <Text
+                        style={[sendFailStyles.action, { color: "#ef4444" }]}
+                        onPress={() => discardMessage(msg.tempId ?? msg._id)}
+                      >
+                        Delete
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  bubbleCore
+                );
 
               if (highlightedId === msg._id) {
                 return (
@@ -1442,7 +1393,6 @@ export default function ChatScreen() {
           </TouchableOpacity>
         )}
 
-        {uploading && <UploadingIndicator colors={colors} />}
 
         {replyTo && !editingMessage && (
           <ReplyBar
@@ -1542,7 +1492,7 @@ export default function ChatScreen() {
                 color={colors.textSecondary}
               />
             </TouchableOpacity>
-            {/* puck sticker button */}
+            {/* pick sticker button */}
             <TouchableOpacity
               style={styles.inputIconBtn}
               onPress={() => {

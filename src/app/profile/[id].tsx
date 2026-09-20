@@ -1,3 +1,1187 @@
+// import {
+//   View,
+//   Text,
+//   StyleSheet,
+//   TouchableOpacity,
+//   ScrollView,
+//   ActivityIndicator,
+//   Alert,
+//   Modal,
+//   Pressable,
+//   KeyboardAvoidingView,
+//   Platform,
+// } from "react-native";
+// import { useEffect, useState } from "react";
+// import { useLocalSearchParams, useRouter } from "expo-router";
+// import { SafeAreaView } from "react-native-safe-area-context";
+// import { Ionicons } from "@expo/vector-icons";
+// import { LinearGradient } from "expo-linear-gradient";
+// import { Image } from "expo-image";
+// import * as Contacts from "expo-contacts";
+// import { Spacing } from "../../constants";
+// import { useTheme } from "../../context/ThemeContext";
+// import { toast, useToast } from "../../context/ToastContext";
+// import { userApi, chatApi, privacyApi } from "../../services/api";
+// import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
+// import { useStartCall } from "../../hooks/useStartCall";
+// import { addOrUpdateChat } from "../../store/slices/chatSlice";
+// import { User } from "../../types";
+// import { useIsBlocked } from "@/hooks/useIsBlockedUser";
+// import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
+
+// import { useRef } from "react";
+// import { Animated, TextInput } from "react-native";
+
+// const REPORT_CATEGORIES = [
+//   { key: "spam", label: "Spam" },
+//   { key: "harassment", label: "Harassment or bullying" },
+//   { key: "fake_account", label: "Fake account" },
+//   { key: "inappropriate_content", label: "Inappropriate content" },
+//   { key: "other", label: "Something else" },
+// ];
+
+// export default function ProfileViewScreen() {
+//   const { colors } = useTheme();
+//   const { id } = useLocalSearchParams<{ id: string }>();
+//   const router = useRouter();
+//   const dispatch = useAppDispatch();
+//   const { user: me } = useAppSelector((s) => s.auth);
+//   const onlineUsers = useAppSelector((s) => s.socket.onlineUsers);
+
+//   const [profile, setProfile] = useState<User | null>(null);
+//   const [loading, setLoading] = useState(true);
+//   const [chatLoading, setChatLoading] = useState(false);
+//   const [showMenu, setShowMenu] = useState(false);
+//   const [showReportSheet, setShowReportSheet] = useState(false);
+//   const isBlocked = useIsBlocked(id);
+
+//   // Contact resolution
+//   const [contactName, setContactName] = useState<string | null>(null);
+//   const [contactPhone, setContactPhone] = useState<string | null>(null);
+//   const [isInContacts, setIsInContacts] = useState(false);
+//   const [contactResolved, setContactResolved] = useState(false);
+
+//   useEffect(() => {
+//     const load = async () => {
+//       try {
+//         const res = await userApi.getUserProfile(id);
+//         if (res.success) {
+//           setProfile(res.data.user);
+//           // Resolve contact name after profile loads
+//           await resolveContact(res.data.user);
+//         }
+//       } catch {
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+//     load();
+//   }, [id]);
+
+//   // ── Look up this user in device contacts by phone number ──────────────────
+//   const resolveContact = async (user: User) => {
+//     try {
+//       const { status } = await Contacts.requestPermissionsAsync();
+//       if (status !== "granted") {
+//         setContactResolved(true);
+//         return;
+//       }
+
+//       if (!user.phone) {
+//         setContactResolved(true);
+//         return;
+//       }
+
+//       // Normalize the stored phone — strip non-digits for comparison
+//       const normalize = (p: string) => p.replace(/\D/g, "");
+//       const userPhone = normalize(user.phone);
+//       // Match on last 9 digits to handle country code variations
+//       const userPhoneSuffix = userPhone.slice(-9);
+
+//       const { data } = await Contacts.getContactsAsync({
+//         fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+//       });
+
+//       let found: Contacts.Contact | null = null;
+//       for (const contact of data) {
+//         if (!contact.phoneNumbers) continue;
+//         for (const pn of contact.phoneNumbers) {
+//           const normalized = normalize(pn.number || "");
+//           if (
+//             normalized.slice(-9) === userPhoneSuffix &&
+//             normalized.length >= 7
+//           ) {
+//             found = contact;
+//             break;
+//           }
+//         }
+//         if (found) break;
+//       }
+
+//       if (found) {
+//         setContactName(found.name || null);
+//         // Use the phone number as stored on device
+//         setContactPhone(found.phoneNumbers?.[0]?.number || user.phone || null);
+//         setIsInContacts(true);
+//       } else {
+//         setContactPhone(user.phone || null);
+//         setIsInContacts(false);
+//       }
+//     } catch {
+//       setIsInContacts(false);
+//     } finally {
+//       setContactResolved(true);
+//     }
+//   };
+
+//   const startChat = async () => {
+//     setChatLoading(true);
+//     try {
+//       const res = await chatApi.createPrivateChat(id);
+//       if (res.success) {
+//         dispatch(addOrUpdateChat(res.data.chat));
+//         router.replace(`/chat/${res.data.chat._id}`);
+//       }
+//     } catch {
+//     } finally {
+//       setChatLoading(false);
+//     }
+//   };
+
+//   // Both call buttons previously navigated to `/call/${id}` using the
+//   // profile's USER id directly — but CallScreen expects a CHAT id there.
+//   // Now using the shared hook so this logic only lives in one place.
+//   const { startCall, callLoading } = useStartCall();
+
+//   const handleBlock = () => {
+//     Alert.alert(
+//       isBlocked ? "Unblock User" : "Block User",
+//       isBlocked
+//         ? `Unblock ${displayName}? They will be able to message you again.`
+//         : `Block ${displayName}? They won't be able to message you.`,
+//       [
+//         { text: "Cancel", style: "cancel" },
+//         {
+//           text: isBlocked ? "Unblock" : "Block",
+//           style: isBlocked ? "default" : "destructive",
+//           onPress: async () => {
+//             try {
+//               if (isBlocked) {
+//                 await privacyApi.unblockUser(id);
+//                 dispatch(removeBlocked(id));
+//                 toast.success(`${displayName} unblocked`);
+//               } else {
+//                 await privacyApi.blockUser(id);
+//                 dispatch(addBlocked(id));
+//                 toast.success(`${displayName} blocked`);
+//               }
+//             } catch {
+//               toast.error("Action failed");
+//             }
+//             setShowMenu(false);
+//           },
+//         },
+//       ]
+//     );
+//   };
+
+//   // const handleReport = () => {
+//   //   setShowMenu(false);
+//   //   Alert.alert(
+//   //     "Report User",
+//   //     `Report ${displayName} for inappropriate behavior?`,
+//   //     [
+//   //       { text: "Cancel", style: "cancel" },
+//   //       { text: "Spam", onPress: () => submitReport("spam") },
+//   //       { text: "Harassment", onPress: () => submitReport("harassment") },
+//   //       { text: "Fake account", onPress: () => submitReport("fake_account") },
+//   //     ]
+//   //   );
+//   // };
+
+//   // const submitReport = async (reason: string) => {
+//   //   try {
+//   //     await privacyApi.reportUser(id, reason);
+//   //     toast.success("Reported. Our team will review.");
+//   //   } catch {
+//   //     toast.error("Failed to report");
+//   //   }
+//   // };
+
+//   const handleReport = () => {
+//     setShowMenu(false);
+//     setShowReportSheet(true);
+//   };
+
+//   const submitReport = async (reason: string) => {
+//     setShowReportSheet(false);
+//     try {
+//       const res = await privacyApi.reportUser(id, reason);
+//       console.log("report res === >>> ", res);
+
+//       toast.success("Reported. Our team will review.");
+//     } catch {
+//       toast.error("Failed to report");
+//     }
+//   };
+
+//   const isOnline = onlineUsers.includes(id);
+//   const isMe = id === me?._id;
+
+//   // Name to display — prefer saved contact name, fall back to profile name
+//   const displayName = contactName || profile?.name || "Unknown";
+//   // If contact name differs from profile name, show profile name as username
+//   const showProfileAlias =
+//     contactName && contactName !== profile?.name && profile?.name;
+
+//   const initials = displayName
+//     .split(" ")
+//     .map((w) => w[0])
+//     .join("")
+//     .slice(0, 2)
+//     .toUpperCase();
+//   function ReportSheet({
+//     visible,
+//     displayName,
+//     onClose,
+//     onSubmit,
+//   }: {
+//     visible: boolean;
+//     displayName: string;
+//     onClose: () => void;
+//     onSubmit: (reason: string) => void;
+//   }) {
+//     const [selectedCategory, setSelectedCategory] = useState<string | null>(
+//       null
+//     );
+//     const [detail, setDetail] = useState("");
+//     const slideAnim = useRef(new Animated.Value(400)).current;
+
+//     useEffect(() => {
+//       if (visible) {
+//         setSelectedCategory(null);
+//         setDetail("");
+//         Animated.spring(slideAnim, {
+//           toValue: 0,
+//           useNativeDriver: true,
+//           tension: 200,
+//           friction: 22,
+//         }).start();
+//       } else {
+//         Animated.timing(slideAnim, {
+//           toValue: 400,
+//           duration: 200,
+//           useNativeDriver: true,
+//         }).start();
+//       }
+//     }, [visible]);
+
+//     const categoryLabel = REPORT_CATEGORIES.find(
+//       (c) => c.key === selectedCategory
+//     )?.label;
+
+//     const handleSubmit = () => {
+//       if (!selectedCategory) return;
+//       const trimmedDetail = detail.trim();
+//       // "Harassment or bullying: keeps sending unsolicited messages" when a
+//       // detail was given, just "Harassment or bullying" when it wasn't —
+//       // either way a real sentence, not a raw enum key.
+//       const reason = trimmedDetail
+//         ? `${categoryLabel}: ${trimmedDetail}`
+//         : categoryLabel!;
+//       onSubmit(reason);
+//     };
+
+//     return (
+//       // <Modal
+//       //   visible={visible}
+//       //   transparent
+//       //   animationType="fade"
+//       //   onRequestClose={onClose}
+//       // >
+//       //   <Pressable style={styles.modalOverlay} onPress={onClose}>
+//       //     <KeyboardAvoidingView
+//       //       behavior={Platform.OS === "ios" ? "padding" : undefined}
+//       //       style={{ width: "100%", backgroundColor: "blue" }}
+//       //     >
+//       //       <Animated.View
+//       //         style={[
+//       //           styles.menuSheet,
+//       //           { transform: [{ translateY: slideAnim }] },
+//       //         ]}
+//       //         onStartShouldSetResponder={() => true}
+//       //       >
+//       //         <View style={styles.sheetHandle} />
+
+//       //         <Text style={reportStyles.title}>Report {displayName}</Text>
+//       //         <Text style={reportStyles.subtitle}>
+//       //           Choose the reason that best fits — details help our team review
+//       //           faster, but aren't required.
+//       //         </Text>
+
+//       //         <View style={reportStyles.categoryList}>
+//       //           {REPORT_CATEGORIES.map((cat) => {
+//       //             const isSelected = selectedCategory === cat.key;
+//       //             return (
+//       //               <TouchableOpacity
+//       //                 key={cat.key}
+//       //                 style={[
+//       //                   reportStyles.categoryRow,
+//       //                   isSelected && reportStyles.categoryRowSelected,
+//       //                 ]}
+//       //                 onPress={() => setSelectedCategory(cat.key)}
+//       //                 activeOpacity={0.7}
+//       //               >
+//       //                 <View
+//       //                   style={[
+//       //                     reportStyles.radio,
+//       //                     isSelected && reportStyles.radioSelected,
+//       //                   ]}
+//       //                 >
+//       //                   {isSelected && <View style={reportStyles.radioDot} />}
+//       //                 </View>
+//       //                 <Text
+//       //                   style={[
+//       //                     reportStyles.categoryLabel,
+//       //                     isSelected && reportStyles.categoryLabelSelected,
+//       //                   ]}
+//       //                 >
+//       //                   {cat.label}
+//       //                 </Text>
+//       //               </TouchableOpacity>
+//       //             );
+//       //           })}
+//       //         </View>
+
+//       //         {selectedCategory && (
+//       //           <>
+//       //             <Text style={reportStyles.detailLabel}>
+//       //               Add detail (optional)
+//       //             </Text>
+
+//       //             <TextInput
+//       //               style={reportStyles.detailInput}
+//       //               placeholder="What happened?"
+//       //               placeholderTextColor="#8888aa"
+//       //               value={detail}
+//       //               onChangeText={setDetail}
+//       //               multiline
+//       //               numberOfLines={3}
+//       //               maxLength={300}
+//       //             />
+//       //           </>
+//       //         )}
+
+//       //         <TouchableOpacity
+//       //           style={[
+//       //             reportStyles.submitBtn,
+//       //             !selectedCategory && reportStyles.submitBtnDisabled,
+//       //           ]}
+//       //           onPress={handleSubmit}
+//       //           disabled={!selectedCategory}
+//       //           activeOpacity={0.85}
+//       //         >
+//       //           <Text style={reportStyles.submitText}>Submit report</Text>
+//       //         </TouchableOpacity>
+
+//       //         <TouchableOpacity
+//       //           style={[styles.menuRow, styles.cancelRow]}
+//       //           onPress={onClose}
+//       //         >
+//       //           <Text style={styles.cancelText}>Cancel</Text>
+//       //         </TouchableOpacity>
+//       //       </Animated.View>
+//       //     </KeyboardAvoidingView>
+//       //   </Pressable>
+//       // </Modal>
+//       <Modal
+//         visible={visible}
+//         transparent
+//         animationType="fade"
+//         onRequestClose={onClose}
+//       >
+//         <View style={styles.modalOverlay}>
+//           {/* Background overlay */}
+//           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+//           <KeyboardAvoidingView
+//             behavior={Platform.OS === "ios" ? "padding" : "height"}
+//             style={{ width: "100%" }}
+//           >
+//             <Animated.View
+//               style={[
+//                 styles.menuSheet,
+//                 {
+//                   transform: [{ translateY: slideAnim }],
+//                 },
+//               ]}
+//             >
+//               <View style={styles.sheetHandle} />
+
+//               <Text style={reportStyles.title}>Report {displayName}</Text>
+
+//               <Text style={reportStyles.subtitle}>
+//                 Choose the reason that best fits — details help our team review
+//                 faster, but aren't required.
+//               </Text>
+
+//               <View style={reportStyles.categoryList}>
+//                 {REPORT_CATEGORIES.map((cat) => {
+//                   const isSelected = selectedCategory === cat.key;
+
+//                   return (
+//                     <TouchableOpacity
+//                       key={cat.key}
+//                       style={[
+//                         reportStyles.categoryRow,
+//                         isSelected && reportStyles.categoryRowSelected,
+//                       ]}
+//                       onPress={() => setSelectedCategory(cat.key)}
+//                       activeOpacity={0.7}
+//                     >
+//                       <View
+//                         style={[
+//                           reportStyles.radio,
+//                           isSelected && reportStyles.radioSelected,
+//                         ]}
+//                       >
+//                         {isSelected && <View style={reportStyles.radioDot} />}
+//                       </View>
+
+//                       <Text
+//                         style={[
+//                           reportStyles.categoryLabel,
+//                           isSelected && reportStyles.categoryLabelSelected,
+//                         ]}
+//                       >
+//                         {cat.label}
+//                       </Text>
+//                     </TouchableOpacity>
+//                   );
+//                 })}
+//               </View>
+
+//               {selectedCategory && (
+//                 <>
+//                   <Text style={reportStyles.detailLabel}>
+//                     Add detail (optional)
+//                   </Text>
+
+//                   <TextInput
+//                     style={reportStyles.detailInput}
+//                     placeholder="What happened?"
+//                     placeholderTextColor="#8888aa"
+//                     value={detail}
+//                     onChangeText={setDetail}
+//                     multiline
+//                     numberOfLines={3}
+//                     maxLength={300}
+//                     returnKeyType="done"
+//                   />
+//                 </>
+//               )}
+
+//               <TouchableOpacity
+//                 style={[
+//                   reportStyles.submitBtn,
+//                   !selectedCategory && reportStyles.submitBtnDisabled,
+//                 ]}
+//                 onPress={handleSubmit}
+//                 disabled={!selectedCategory}
+//                 activeOpacity={0.85}
+//               >
+//                 <Text style={reportStyles.submitText}>Submit report</Text>
+//               </TouchableOpacity>
+
+//               <TouchableOpacity
+//                 style={[styles.menuRow, styles.cancelRow]}
+//                 onPress={onClose}
+//               >
+//                 <Text style={styles.cancelText}>Cancel</Text>
+//               </TouchableOpacity>
+//             </Animated.View>
+//           </KeyboardAvoidingView>
+//         </View>
+//       </Modal>
+//     );
+//   }
+
+//   const reportStyles = StyleSheet.create({
+//     title: {
+//       fontSize: 17,
+//       fontWeight: "800",
+//       color: colors.textPrimary,
+//       marginBottom: 4,
+//     },
+//     subtitle: {
+//       fontSize: 13,
+//       color: colors.textPrimary,
+//       marginBottom: 16,
+//       lineHeight: 18,
+//     },
+//     categoryList: { gap: 4, marginBottom: 4 },
+//     categoryRow: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       gap: 12,
+//       paddingVertical: 12,
+//       paddingHorizontal: 4,
+//       borderRadius: 12,
+//     },
+//     categoryRowSelected: { backgroundColor: "rgba(255,193,7,0.08)" },
+//     radio: {
+//       width: 20,
+//       height: 20,
+//       borderRadius: 10,
+//       borderWidth: 2,
+//       borderColor: colors.textPrimary,
+//       justifyContent: "center",
+//       alignItems: "center",
+//     },
+//     radioSelected: { borderColor: "#ffc107" },
+//     radioDot: {
+//       width: 10,
+//       height: 10,
+//       borderRadius: 5,
+//       backgroundColor: "#ffc107",
+//     },
+//     categoryLabel: {
+//       fontSize: 15,
+//       color: colors.textPrimary,
+//       fontWeight: "500",
+//     },
+//     categoryLabelSelected: { fontWeight: "700" },
+//     detailLabel: {
+//       fontSize: 12,
+//       fontWeight: "700",
+//       color: colors.textSecondary,
+//       marginTop: 12,
+//       marginBottom: 6,
+//     },
+//     detailInput: {
+//       backgroundColor: colors.tabBackground,
+//       borderRadius: 12,
+//       borderWidth: 1,
+//       borderColor: colors.border,
+//       color: colors.textPrimary,
+//       fontSize: 14,
+//       padding: 12,
+//       minHeight: 72,
+//       textAlignVertical: "top",
+//     },
+//     submitBtn: {
+//       backgroundColor: "#ffc107",
+//       borderRadius: 14,
+//       paddingVertical: 14,
+//       alignItems: "center",
+//       marginTop: 16,
+//       marginBottom: 4,
+//     },
+//     submitBtnDisabled: { opacity: 0.4 },
+//     submitText: { color: colors.textPrimary, fontSize: 15, fontWeight: "800" },
+//   });
+
+//   const styles = StyleSheet.create({
+//     container: { flex: 1 },
+//     header: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       paddingHorizontal: Spacing.base,
+//       paddingVertical: Spacing.md,
+//       gap: 12,
+//     },
+//     backBtn: {
+//       width: 40,
+//       height: 40,
+//       borderRadius: 20,
+//       backgroundColor: colors.surfaceElevated,
+//       justifyContent: "center",
+//       alignItems: "center",
+//       borderWidth: 1,
+//       borderColor: colors.border,
+//     },
+//     title: {
+//       flex: 1,
+//       fontSize: 20,
+//       fontWeight: "700",
+//       color: colors.textPrimary,
+//     },
+//     editBtn: {
+//       width: 40,
+//       height: 40,
+//       borderRadius: 20,
+//       backgroundColor: colors.surface,
+//       justifyContent: "center",
+//       alignItems: "center",
+//       borderWidth: 1,
+//       borderColor: colors.border,
+//     },
+//     heroCard: {
+//       marginHorizontal: Spacing.base,
+//       borderRadius: 24,
+//       overflow: "hidden",
+//       alignItems: "center",
+//       padding: 32,
+//       marginBottom: 16,
+//       borderWidth: 1,
+//       borderColor: colors.border,
+//     },
+//     avatarWrap: { position: "relative", marginBottom: 16 },
+//     avatar: {
+//       width: 100,
+//       height: 100,
+//       borderRadius: 50,
+//       borderWidth: 3,
+//       borderColor: colors.tabActive,
+//     },
+//     avatarFallback: {
+//       width: 100,
+//       height: 100,
+//       borderRadius: 50,
+//       justifyContent: "center",
+//       alignItems: "center",
+//     },
+//     avatarInitials: { fontSize: 36, fontWeight: "800", color: "#fff" },
+//     onlineIndicator: {
+//       position: "absolute",
+//       bottom: 4,
+//       right: 4,
+//       width: 16,
+//       height: 16,
+//       borderRadius: 8,
+//       borderWidth: 3,
+//       borderColor: colors.background,
+//     },
+//     name: {
+//       fontSize: 24,
+//       fontWeight: "800",
+//       color: colors.textPrimary,
+//       marginBottom: 4,
+//       textAlign: "center",
+//     },
+//     profileAlias: {
+//       fontSize: 13,
+//       color: colors.textMuted,
+//       marginBottom: 6,
+//       textAlign: "center",
+//     },
+//     onlineText: {
+//       fontSize: 13,
+//       color: colors.textMuted,
+//       marginBottom: 12,
+//     },
+//     notInContactsBadge: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       gap: 5,
+//       backgroundColor: "rgba(255,193,7,0.1)",
+//       borderWidth: 1,
+//       borderColor: "rgba(255,193,7,0.25)",
+//       borderRadius: 99,
+//       paddingHorizontal: 10,
+//       paddingVertical: 5,
+//       marginBottom: 12,
+//     },
+//     notInContactsText: {
+//       fontSize: 12,
+//       color: "#ffc107",
+//       fontWeight: "600",
+//     },
+//     inContactsBadge: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       gap: 5,
+//       backgroundColor: "rgba(0,212,170,0.08)",
+//       borderWidth: 1,
+//       borderColor: "rgba(0,212,170,0.2)",
+//       borderRadius: 99,
+//       paddingHorizontal: 10,
+//       paddingVertical: 5,
+//       marginBottom: 12,
+//     },
+//     inContactsText: {
+//       fontSize: 12,
+//       color: "#00d4aa",
+//       fontWeight: "600",
+//     },
+//     bio: {
+//       fontSize: 14,
+//       color: colors.textSecondary,
+//       textAlign: "center",
+//       lineHeight: 22,
+//     },
+//     section: {
+//       marginHorizontal: Spacing.base,
+//       backgroundColor: colors.surface,
+//       borderRadius: 16,
+//       borderWidth: 1,
+//       borderColor: colors.border,
+//       overflow: "hidden",
+//       marginBottom: 16,
+//     },
+//     infoRow: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       padding: 16,
+//       gap: 14,
+//     },
+//     infoIcon: {
+//       width: 38,
+//       height: 38,
+//       borderRadius: 12,
+//       backgroundColor: colors.surfaceElevated,
+//       justifyContent: "center",
+//       alignItems: "center",
+//     },
+//     infoLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
+//     infoValue: {
+//       fontSize: 15,
+//       color: colors.textPrimary,
+//       fontWeight: "600",
+//       marginTop: 1,
+//     },
+//     divider: {
+//       height: 1,
+//       backgroundColor: colors.divider,
+//       marginLeft: 68,
+//     },
+//     actionsRow: {
+//       flexDirection: "row",
+//       paddingHorizontal: Spacing.base,
+//       gap: 10,
+//     },
+//     blockedBanner: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       gap: 10,
+//       marginHorizontal: Spacing.base,
+//       padding: 14,
+//       borderRadius: 14,
+//       borderWidth: 1,
+//     },
+//     blockedBannerText: { flex: 1, fontSize: 13, lineHeight: 18 },
+//     blockedBannerBtn: {
+//       paddingHorizontal: 12,
+//       paddingVertical: 7,
+//       borderRadius: 99,
+//       borderWidth: 1,
+//       borderColor: "#ff4757",
+//     },
+//     blockedBannerBtnText: { color: "#ff4757", fontWeight: "700", fontSize: 12 },
+//     actionBtn: { flex: 1, borderRadius: 14, overflow: "hidden" },
+//     actionGradient: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       justifyContent: "center",
+//       gap: 8,
+//       paddingVertical: 14,
+//     },
+//     actionBtnSecondary: {
+//       flex: 1,
+//       flexDirection: "row",
+//       alignItems: "center",
+//       justifyContent: "center",
+//       gap: 6,
+//       backgroundColor: colors.surface,
+//       borderRadius: 14,
+//       paddingVertical: 14,
+//       borderWidth: 1,
+//       borderColor: colors.border,
+//     },
+//     actionText: {
+//       color: colors.textPrimary,
+//       fontSize: 14,
+//       fontWeight: "700",
+//     },
+//     modalOverlay: {
+//       flex: 1,
+//       backgroundColor: "rgba(0,0,0,0.55)",
+//       justifyContent: "flex-end",
+//     },
+//     menuSheet: {
+//       backgroundColor: colors.surface,
+//       borderTopLeftRadius: 24,
+//       borderTopRightRadius: 24,
+//       padding: 20,
+//       paddingBottom: 36,
+//       borderTopWidth: 1,
+//       borderColor: colors.border,
+//     },
+//     sheetHandle: {
+//       width: 36,
+//       height: 4,
+//       borderRadius: 2,
+//       backgroundColor: colors.border,
+//       alignSelf: "center",
+//       marginBottom: 20,
+//     },
+//     menuRow: {
+//       flexDirection: "row",
+//       alignItems: "center",
+//       gap: 14,
+//       paddingVertical: 14,
+//       borderBottomWidth: StyleSheet.hairlineWidth,
+//       borderBottomColor: colors.border,
+//     },
+//     menuIcon: {
+//       width: 38,
+//       height: 38,
+//       borderRadius: 12,
+//       justifyContent: "center",
+//       alignItems: "center",
+//     },
+//     menuLabel: { fontSize: 15, fontWeight: "600" },
+//     cancelRow: {
+//       borderBottomWidth: 0,
+//       justifyContent: "center",
+//       marginTop: 4,
+//     },
+//     cancelText: {
+//       fontSize: 15,
+//       fontWeight: "700",
+//       color: colors.textSecondary,
+//     },
+//   });
+
+//   if (loading) {
+//     return (
+//       <View
+//         style={[
+//           styles.container,
+//           {
+//             backgroundColor: colors.background,
+//             justifyContent: "center",
+//             alignItems: "center",
+//           },
+//         ]}
+//       >
+//         <ActivityIndicator color={colors.primary} size="large" />
+//       </View>
+//     );
+//   }
+
+//   return (
+//     <View style={[styles.container, { backgroundColor: colors.background }]}>
+//       <View style={styles.header}>
+//         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+//           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+//         </TouchableOpacity>
+//         <Text style={styles.title}>Profile</Text>
+//         {isMe ? (
+//           <TouchableOpacity
+//             style={styles.editBtn}
+//             onPress={() => router.push("/profile/edit")}
+//           >
+//             <Ionicons name="create-outline" size={20} color={colors.primary} />
+//           </TouchableOpacity>
+//         ) : (
+//           <TouchableOpacity
+//             style={styles.editBtn}
+//             onPress={() => setShowMenu(true)}
+//           >
+//             <Ionicons
+//               name="ellipsis-vertical"
+//               size={20}
+//               color={colors.textPrimary}
+//             />
+//           </TouchableOpacity>
+//         )}
+//       </View>
+
+//       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+//         {/* Hero card */}
+//         <View style={styles.heroCard}>
+//           <LinearGradient
+//             colors={[colors.surface, colors.background]}
+//             style={StyleSheet.absoluteFillObject}
+//           />
+//           <View style={styles.avatarWrap}>
+//             {profile?.avatar ? (
+//               <Image
+//                 source={{ uri: profile.avatar }}
+//                 style={styles.avatar}
+//                 contentFit="cover"
+//               />
+//             ) : (
+//               <LinearGradient
+//                 colors={[colors.primary, colors.secondary]}
+//                 style={styles.avatarFallback}
+//               >
+//                 <Text style={styles.avatarInitials}>{initials}</Text>
+//               </LinearGradient>
+//             )}
+//             <View
+//               style={[
+//                 styles.onlineIndicator,
+//                 {
+//                   backgroundColor: isOnline ? colors.online : colors.offline,
+//                 },
+//               ]}
+//             />
+//           </View>
+
+//           <Text style={styles.name}>{displayName}</Text>
+
+//           {showProfileAlias && (
+//             <Text style={styles.profileAlias}>@{profile?.name}</Text>
+//           )}
+
+//           {!isMe &&
+//             contactResolved &&
+//             (isInContacts ? (
+//               <View style={styles.inContactsBadge}>
+//                 <Ionicons name="checkmark-circle" size={13} color="#00d4aa" />
+//                 <Text style={styles.inContactsText}>
+//                   Saved in your contacts
+//                 </Text>
+//               </View>
+//             ) : (
+//               <View style={styles.notInContactsBadge}>
+//                 <Ionicons name="person-add-outline" size={13} color="#ffc107" />
+//                 <Text style={styles.notInContactsText}>
+//                   Not in your contacts
+//                 </Text>
+//               </View>
+//             ))}
+
+//           <Text style={styles.onlineText}>
+//             {isOnline ? "🟢 Online" : "⚫ Offline"}
+//           </Text>
+
+//           <Text style={styles.bio}>
+//             {profile?.bio || "Hey there! I am using LinksChat."}
+//           </Text>
+//         </View>
+
+//         {/* Info rows */}
+//         <View style={styles.section}>
+//           {/* {profile?.email && (
+//             <View style={styles.infoRow}>
+//               <View style={styles.infoIcon}>
+//                 <Ionicons
+//                   name="mail-outline"
+//                   size={18}
+//                   color={colors.primary}
+//                 />
+//               </View>
+//               <View>
+//                 <Text style={styles.infoLabel}>Email</Text>
+//                 <Text style={styles.infoValue}>{profile.email}</Text>
+//               </View>
+//             </View>
+//           )} */}
+
+//           {(contactPhone || profile?.phone) && (
+//             <>
+//               {profile?.email && <View style={styles.divider} />}
+//               <View style={styles.infoRow}>
+//                 <View style={styles.infoIcon}>
+//                   <Ionicons
+//                     name="call-outline"
+//                     size={18}
+//                     color={colors.primary}
+//                   />
+//                 </View>
+//                 <View style={{ flex: 1 }}>
+//                   <Text style={styles.infoLabel}>
+//                     {isInContacts ? "Mobile" : "Phone"}
+//                   </Text>
+//                   <Text style={styles.infoValue}>
+//                     {contactPhone || profile?.phone}
+//                   </Text>
+//                 </View>
+//                 {!isInContacts && !isMe && (
+//                   <View
+//                     style={{
+//                       backgroundColor: "rgba(255,193,7,0.1)",
+//                       borderRadius: 8,
+//                       paddingHorizontal: 10,
+//                       paddingVertical: 5,
+//                       borderWidth: 1,
+//                       borderColor: "rgba(255,193,7,0.25)",
+//                     }}
+//                   >
+//                     <Text
+//                       style={{
+//                         fontSize: 11,
+//                         color: "#ffc107",
+//                         fontWeight: "700",
+//                       }}
+//                     >
+//                       Unsaved
+//                     </Text>
+//                   </View>
+//                 )}
+//               </View>
+//             </>
+//           )}
+//         </View>
+
+//         {/* Actions */}
+//         {!isMe && isBlocked ? (
+//           <View
+//             style={[
+//               styles.blockedBanner,
+//               { backgroundColor: colors.surface, borderColor: colors.border },
+//             ]}
+//           >
+//             <Ionicons name="ban" size={22} color="#ff4757" />
+//             <Text
+//               style={[
+//                 styles.blockedBannerText,
+//                 { color: colors.textSecondary },
+//               ]}
+//             >
+//               You've blocked {displayName}. They can't message or call you.
+//             </Text>
+//             <TouchableOpacity
+//               onPress={handleBlock}
+//               style={styles.blockedBannerBtn}
+//             >
+//               <Text style={styles.blockedBannerBtnText}>Unblock</Text>
+//             </TouchableOpacity>
+//           </View>
+//         ) : !isMe ? (
+//           <View style={styles.actionsRow}>
+//             <TouchableOpacity
+//               style={styles.actionBtn}
+//               onPress={startChat}
+//               disabled={chatLoading}
+//               activeOpacity={0.8}
+//             >
+//               <LinearGradient
+//                 colors={[colors.primary, colors.primaryDark]}
+//                 style={styles.actionGradient}
+//               >
+//                 {chatLoading ? (
+//                   <ActivityIndicator color="#fff" size="small" />
+//                 ) : (
+//                   <>
+//                     <Ionicons
+//                       name="chatbubble-outline"
+//                       size={20}
+//                       color="#fff"
+//                     />
+//                     <Text style={[styles.actionText, { color: "#fff" }]}>
+//                       Message
+//                     </Text>
+//                   </>
+//                 )}
+//               </LinearGradient>
+//             </TouchableOpacity>
+
+//             <TouchableOpacity
+//               style={styles.actionBtnSecondary}
+//               onPress={() => startCall(id, "audio")}
+//               disabled={callLoading !== null}
+//               activeOpacity={0.8}
+//             >
+//               {callLoading === "audio" ? (
+//                 <ActivityIndicator size="small" color={colors.primary} />
+//               ) : (
+//                 <>
+//                   <Ionicons
+//                     name="call-outline"
+//                     size={20}
+//                     color={colors.primary}
+//                   />
+//                   <Text style={[styles.actionText, { color: colors.primary }]}>
+//                     Voice
+//                   </Text>
+//                 </>
+//               )}
+//             </TouchableOpacity>
+
+//             <TouchableOpacity
+//               style={styles.actionBtnSecondary}
+//               onPress={() => startCall(id, "video")}
+//               disabled={callLoading !== null}
+//               activeOpacity={0.8}
+//             >
+//               {callLoading === "video" ? (
+//                 <ActivityIndicator size="small" color={colors.secondary} />
+//               ) : (
+//                 <>
+//                   <Ionicons
+//                     name="videocam-outline"
+//                     size={20}
+//                     color={colors.secondary}
+//                   />
+//                   <Text
+//                     style={[styles.actionText, { color: colors.secondary }]}
+//                   >
+//                     Video
+//                   </Text>
+//                 </>
+//               )}
+//             </TouchableOpacity>
+//           </View>
+//         ) : null}
+//       </ScrollView>
+
+//       {/* Block / Report action sheet */}
+//       <Modal
+//         visible={showMenu}
+//         transparent
+//         animationType="fade"
+//         onRequestClose={() => setShowMenu(false)}
+//       >
+//         <Pressable
+//           style={styles.modalOverlay}
+//           onPress={() => setShowMenu(false)}
+//         >
+//           <Pressable style={styles.menuSheet} onPress={() => {}}>
+//             <View style={styles.sheetHandle} />
+//             {[
+//               {
+//                 icon: isBlocked ? "ban" : "ban-outline",
+//                 label: isBlocked
+//                   ? `Unblock ${displayName}`
+//                   : `Block ${displayName}`,
+//                 color: "#ff4757",
+//                 onPress: handleBlock,
+//               },
+//               {
+//                 icon: "flag-outline",
+//                 label: `Report ${displayName}`,
+//                 color: "#ffc107",
+//                 onPress: handleReport,
+//               },
+//             ].map(({ icon, label, color, onPress }) => (
+//               <TouchableOpacity
+//                 key={label}
+//                 style={styles.menuRow}
+//                 onPress={onPress}
+//                 activeOpacity={0.7}
+//               >
+//                 <View
+//                   style={[styles.menuIcon, { backgroundColor: color + "18" }]}
+//                 >
+//                   <Ionicons name={icon as any} size={18} color={color} />
+//                 </View>
+//                 <Text style={[styles.menuLabel, { color }]}>{label}</Text>
+//               </TouchableOpacity>
+//             ))}
+//             <TouchableOpacity
+//               style={[styles.menuRow, styles.cancelRow]}
+//               onPress={() => setShowMenu(false)}
+//             >
+//               <Text style={styles.cancelText}>Cancel</Text>
+//             </TouchableOpacity>
+//           </Pressable>
+//         </Pressable>
+//       </Modal>
+
+//       <ReportSheet
+//         visible={showReportSheet}
+//         displayName={displayName}
+//         onClose={() => setShowReportSheet(false)}
+//         onSubmit={submitReport}
+//       />
+//     </View>
+//   );
+// }
+
 import {
   View,
   Text,
@@ -8,8 +1192,12 @@ import {
   Alert,
   Modal,
   Pressable,
+  Platform,
+  Keyboard,
+  Animated,
+  TextInput,
 } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +1215,14 @@ import { User } from "../../types";
 import { useIsBlocked } from "@/hooks/useIsBlockedUser";
 import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
 
+const REPORT_CATEGORIES = [
+  { key: "spam", label: "Spam" },
+  { key: "harassment", label: "Harassment or bullying" },
+  { key: "fake_account", label: "Fake account" },
+  { key: "inappropriate_content", label: "Inappropriate content" },
+  { key: "other", label: "Something else" },
+];
+
 export default function ProfileViewScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,6 +1235,8 @@ export default function ProfileViewScreen() {
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
+
   const isBlocked = useIsBlocked(id);
 
   // Contact resolution
@@ -51,16 +1249,20 @@ export default function ProfileViewScreen() {
     const load = async () => {
       try {
         const res = await userApi.getUserProfile(id);
+
         if (res.success) {
           setProfile(res.data.user);
+
           // Resolve contact name after profile loads
           await resolveContact(res.data.user);
         }
       } catch {
+        // Ignore
       } finally {
         setLoading(false);
       }
     };
+
     load();
   }, [id]);
 
@@ -68,6 +1270,7 @@ export default function ProfileViewScreen() {
   const resolveContact = async (user: User) => {
     try {
       const { status } = await Contacts.requestPermissionsAsync();
+
       if (status !== "granted") {
         setContactResolved(true);
         return;
@@ -80,7 +1283,9 @@ export default function ProfileViewScreen() {
 
       // Normalize the stored phone — strip non-digits for comparison
       const normalize = (p: string) => p.replace(/\D/g, "");
+
       const userPhone = normalize(user.phone);
+
       // Match on last 9 digits to handle country code variations
       const userPhoneSuffix = userPhone.slice(-9);
 
@@ -89,10 +1294,13 @@ export default function ProfileViewScreen() {
       });
 
       let found: Contacts.Contact | null = null;
+
       for (const contact of data) {
         if (!contact.phoneNumbers) continue;
+
         for (const pn of contact.phoneNumbers) {
           const normalized = normalize(pn.number || "");
+
           if (
             normalized.slice(-9) === userPhoneSuffix &&
             normalized.length >= 7
@@ -101,12 +1309,12 @@ export default function ProfileViewScreen() {
             break;
           }
         }
+
         if (found) break;
       }
 
       if (found) {
         setContactName(found.name || null);
-        // Use the phone number as stored on device
         setContactPhone(found.phoneNumbers?.[0]?.number || user.phone || null);
         setIsInContacts(true);
       } else {
@@ -122,21 +1330,22 @@ export default function ProfileViewScreen() {
 
   const startChat = async () => {
     setChatLoading(true);
+
     try {
       const res = await chatApi.createPrivateChat(id);
+
       if (res.success) {
         dispatch(addOrUpdateChat(res.data.chat));
         router.replace(`/chat/${res.data.chat._id}`);
       }
     } catch {
+      // Ignore
     } finally {
       setChatLoading(false);
     }
   };
 
-  // Both call buttons previously navigated to `/call/${id}` using the
-  // profile's USER id directly — but CallScreen expects a CHAT id there.
-  // Now using the shared hook so this logic only lives in one place.
+  // Both call buttons use the shared hook
   const { startCall, callLoading } = useStartCall();
 
   const handleBlock = () => {
@@ -146,7 +1355,10 @@ export default function ProfileViewScreen() {
         ? `Unblock ${displayName}? They will be able to message you again.`
         : `Block ${displayName}? They won't be able to message you.`,
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
         {
           text: isBlocked ? "Unblock" : "Block",
           style: isBlocked ? "default" : "destructive",
@@ -164,6 +1376,7 @@ export default function ProfileViewScreen() {
             } catch {
               toast.error("Action failed");
             }
+
             setShowMenu(false);
           },
         },
@@ -173,21 +1386,17 @@ export default function ProfileViewScreen() {
 
   const handleReport = () => {
     setShowMenu(false);
-    Alert.alert(
-      "Report User",
-      `Report ${displayName} for inappropriate behavior?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Spam", onPress: () => submitReport("spam") },
-        { text: "Harassment", onPress: () => submitReport("harassment") },
-        { text: "Fake account", onPress: () => submitReport("fake_account") },
-      ]
-    );
+    setShowReportSheet(true);
   };
 
   const submitReport = async (reason: string) => {
+    setShowReportSheet(false);
+
     try {
-      await privacyApi.reportUser(id, reason);
+      const res = await privacyApi.reportUser(id, reason);
+
+      console.log("report res === >>> ", res);
+
       toast.success("Reported. Our team will review.");
     } catch {
       toast.error("Failed to report");
@@ -199,9 +1408,10 @@ export default function ProfileViewScreen() {
 
   // Name to display — prefer saved contact name, fall back to profile name
   const displayName = contactName || profile?.name || "Unknown";
+
   // If contact name differs from profile name, show profile name as username
   const showProfileAlias =
-    contactName && contactName !== profile?.name && profile?.name;
+    !!contactName && contactName !== profile?.name && !!profile?.name;
 
   const initials = displayName
     .split(" ")
@@ -210,8 +1420,353 @@ export default function ProfileViewScreen() {
     .slice(0, 2)
     .toUpperCase();
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // REPORT SHEET
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function ReportSheet({
+    visible,
+    displayName,
+    onClose,
+    onSubmit,
+  }: {
+    visible: boolean;
+    displayName: string;
+    onClose: () => void;
+    onSubmit: (reason: string) => void;
+  }) {
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(
+      null
+    );
+
+    const [detail, setDetail] = useState("");
+
+    // Sheet animation
+    const slideAnim = useRef(new Animated.Value(500)).current;
+
+    // Keyboard movement
+    const keyboardOffset = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      if (visible) {
+        setSelectedCategory(null);
+        setDetail("");
+
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 200,
+          friction: 22,
+        }).start();
+      } else {
+        Animated.timing(slideAnim, {
+          toValue: 500,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+
+        // Reset keyboard position
+        keyboardOffset.setValue(0);
+      }
+    }, [visible]);
+
+    // ─────────────────────────────────────────────────────────────────────
+    // KEYBOARD HANDLING
+    // ─────────────────────────────────────────────────────────────────────
+
+    useEffect(() => {
+      if (!visible) return;
+
+      const keyboardShowEvent =
+        Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+
+      const keyboardHideEvent =
+        Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+      const showSubscription = Keyboard.addListener(
+        keyboardShowEvent,
+        (event) => {
+          const keyboardHeight = event.endCoordinates.height;
+
+          Animated.timing(keyboardOffset, {
+            toValue: -keyboardHeight,
+            duration: Platform.OS === "ios" ? event.duration || 250 : 250,
+            useNativeDriver: true,
+          }).start();
+        }
+      );
+
+      const hideSubscription = Keyboard.addListener(
+        keyboardHideEvent,
+        (event) => {
+          Animated.timing(keyboardOffset, {
+            toValue: 0,
+            duration: Platform.OS === "ios" ? event.duration || 250 : 250,
+            useNativeDriver: true,
+          }).start();
+        }
+      );
+
+      return () => {
+        showSubscription.remove();
+        hideSubscription.remove();
+      };
+    }, [visible]);
+
+    const categoryLabel = REPORT_CATEGORIES.find(
+      (c) => c.key === selectedCategory
+    )?.label;
+
+    const handleSubmit = () => {
+      if (!selectedCategory) return;
+
+      const trimmedDetail = detail.trim();
+
+      const reason = trimmedDetail
+        ? `${categoryLabel}: ${trimmedDetail}`
+        : categoryLabel!;
+
+      onSubmit(reason);
+    };
+
+    const combinedTranslateY = Animated.add(slideAnim, keyboardOffset);
+
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={onClose}
+      >
+        <View style={styles.modalOverlay}>
+          {/* Background overlay */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+          {/* Bottom sheet */}
+          <Animated.View
+            style={[
+              styles.menuSheet,
+              {
+                transform: [
+                  {
+                    translateY: combinedTranslateY,
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.sheetHandle} />
+
+            <ScrollView
+              style={styles.sheetScrollView}
+              contentContainerStyle={styles.sheetScrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={
+                Platform.OS === "ios" ? "interactive" : "on-drag"
+              }
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={reportStyles.title}>Report {displayName}</Text>
+
+              <Text style={reportStyles.subtitle}>
+                Choose the reason that best fits — details help our team review
+                faster, but aren't required.
+              </Text>
+
+              <View style={reportStyles.categoryList}>
+                {REPORT_CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategory === cat.key;
+
+                  return (
+                    <TouchableOpacity
+                      key={cat.key}
+                      style={[
+                        reportStyles.categoryRow,
+                        isSelected && reportStyles.categoryRowSelected,
+                      ]}
+                      onPress={() => setSelectedCategory(cat.key)}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          reportStyles.radio,
+                          isSelected && reportStyles.radioSelected,
+                        ]}
+                      >
+                        {isSelected && <View style={reportStyles.radioDot} />}
+                      </View>
+
+                      <Text
+                        style={[
+                          reportStyles.categoryLabel,
+                          isSelected && reportStyles.categoryLabelSelected,
+                        ]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {selectedCategory && (
+                <>
+                  <Text style={reportStyles.detailLabel}>
+                    Add detail (optional)
+                  </Text>
+
+                  <TextInput
+                    style={reportStyles.detailInput}
+                    placeholder="What happened?"
+                    placeholderTextColor="#8888aa"
+                    value={detail}
+                    onChangeText={setDetail}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={300}
+                    textAlignVertical="top"
+                    autoCorrect
+                    returnKeyType="default"
+                  />
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  reportStyles.submitBtn,
+                  !selectedCategory && reportStyles.submitBtnDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={!selectedCategory}
+                activeOpacity={0.85}
+              >
+                <Text style={reportStyles.submitText}>Submit report</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuRow, styles.cancelRow]}
+                onPress={onClose}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+    );
+  }
+
+  const reportStyles = StyleSheet.create({
+    title: {
+      fontSize: 17,
+      fontWeight: "800",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+
+    subtitle: {
+      fontSize: 13,
+      color: colors.textPrimary,
+      marginBottom: 16,
+      lineHeight: 18,
+    },
+
+    categoryList: {
+      gap: 4,
+      marginBottom: 4,
+    },
+
+    categoryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      borderRadius: 12,
+    },
+
+    categoryRowSelected: {
+      backgroundColor: "rgba(255,193,7,0.08)",
+    },
+
+    radio: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: colors.textPrimary,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+
+    radioSelected: {
+      borderColor: "#ffc107",
+    },
+
+    radioDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: "#ffc107",
+    },
+
+    categoryLabel: {
+      fontSize: 15,
+      color: colors.textPrimary,
+      fontWeight: "500",
+    },
+
+    categoryLabelSelected: {
+      fontWeight: "700",
+    },
+
+    detailLabel: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: colors.textSecondary,
+      marginTop: 12,
+      marginBottom: 6,
+    },
+
+    detailInput: {
+      backgroundColor: colors.tabBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      color: colors.textPrimary,
+      fontSize: 14,
+      padding: 12,
+      minHeight: 90,
+      maxHeight: 150,
+      textAlignVertical: "top",
+    },
+
+    submitBtn: {
+      backgroundColor: "#ffc107",
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: "center",
+      marginTop: 16,
+      marginBottom: 4,
+    },
+
+    submitBtnDisabled: {
+      opacity: 0.4,
+    },
+
+    submitText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+  });
+
   const styles = StyleSheet.create({
-    container: { flex: 1 },
+    container: {
+      flex: 1,
+    },
+
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -219,6 +1774,7 @@ export default function ProfileViewScreen() {
       paddingVertical: Spacing.md,
       gap: 12,
     },
+
     backBtn: {
       width: 40,
       height: 40,
@@ -229,12 +1785,14 @@ export default function ProfileViewScreen() {
       borderWidth: 1,
       borderColor: colors.border,
     },
+
     title: {
       flex: 1,
       fontSize: 20,
       fontWeight: "700",
       color: colors.textPrimary,
     },
+
     editBtn: {
       width: 40,
       height: 40,
@@ -245,6 +1803,7 @@ export default function ProfileViewScreen() {
       borderWidth: 1,
       borderColor: colors.border,
     },
+
     heroCard: {
       marginHorizontal: Spacing.base,
       borderRadius: 24,
@@ -255,7 +1814,12 @@ export default function ProfileViewScreen() {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    avatarWrap: { position: "relative", marginBottom: 16 },
+
+    avatarWrap: {
+      position: "relative",
+      marginBottom: 16,
+    },
+
     avatar: {
       width: 100,
       height: 100,
@@ -263,6 +1827,7 @@ export default function ProfileViewScreen() {
       borderWidth: 3,
       borderColor: colors.tabActive,
     },
+
     avatarFallback: {
       width: 100,
       height: 100,
@@ -270,7 +1835,13 @@ export default function ProfileViewScreen() {
       justifyContent: "center",
       alignItems: "center",
     },
-    avatarInitials: { fontSize: 36, fontWeight: "800", color: "#fff" },
+
+    avatarInitials: {
+      fontSize: 36,
+      fontWeight: "800",
+      color: "#fff",
+    },
+
     onlineIndicator: {
       position: "absolute",
       bottom: 4,
@@ -281,6 +1852,7 @@ export default function ProfileViewScreen() {
       borderWidth: 3,
       borderColor: colors.background,
     },
+
     name: {
       fontSize: 24,
       fontWeight: "800",
@@ -288,17 +1860,20 @@ export default function ProfileViewScreen() {
       marginBottom: 4,
       textAlign: "center",
     },
+
     profileAlias: {
       fontSize: 13,
       color: colors.textMuted,
       marginBottom: 6,
       textAlign: "center",
     },
+
     onlineText: {
       fontSize: 13,
       color: colors.textMuted,
       marginBottom: 12,
     },
+
     notInContactsBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -311,11 +1886,13 @@ export default function ProfileViewScreen() {
       paddingVertical: 5,
       marginBottom: 12,
     },
+
     notInContactsText: {
       fontSize: 12,
       color: "#ffc107",
       fontWeight: "600",
     },
+
     inContactsBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -328,17 +1905,20 @@ export default function ProfileViewScreen() {
       paddingVertical: 5,
       marginBottom: 12,
     },
+
     inContactsText: {
       fontSize: 12,
       color: "#00d4aa",
       fontWeight: "600",
     },
+
     bio: {
       fontSize: 14,
       color: colors.textSecondary,
       textAlign: "center",
       lineHeight: 22,
     },
+
     section: {
       marginHorizontal: Spacing.base,
       backgroundColor: colors.surface,
@@ -348,12 +1928,14 @@ export default function ProfileViewScreen() {
       overflow: "hidden",
       marginBottom: 16,
     },
+
     infoRow: {
       flexDirection: "row",
       alignItems: "center",
       padding: 16,
       gap: 14,
     },
+
     infoIcon: {
       width: 38,
       height: 38,
@@ -362,23 +1944,32 @@ export default function ProfileViewScreen() {
       justifyContent: "center",
       alignItems: "center",
     },
-    infoLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
+
+    infoLabel: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: "500",
+    },
+
     infoValue: {
       fontSize: 15,
       color: colors.textPrimary,
       fontWeight: "600",
       marginTop: 1,
     },
+
     divider: {
       height: 1,
       backgroundColor: colors.divider,
       marginLeft: 68,
     },
+
     actionsRow: {
       flexDirection: "row",
       paddingHorizontal: Spacing.base,
       gap: 10,
     },
+
     blockedBanner: {
       flexDirection: "row",
       alignItems: "center",
@@ -388,7 +1979,13 @@ export default function ProfileViewScreen() {
       borderRadius: 14,
       borderWidth: 1,
     },
-    blockedBannerText: { flex: 1, fontSize: 13, lineHeight: 18 },
+
+    blockedBannerText: {
+      flex: 1,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+
     blockedBannerBtn: {
       paddingHorizontal: 12,
       paddingVertical: 7,
@@ -396,8 +1993,19 @@ export default function ProfileViewScreen() {
       borderWidth: 1,
       borderColor: "#ff4757",
     },
-    blockedBannerBtnText: { color: "#ff4757", fontWeight: "700", fontSize: 12 },
-    actionBtn: { flex: 1, borderRadius: 14, overflow: "hidden" },
+
+    blockedBannerBtnText: {
+      color: "#ff4757",
+      fontWeight: "700",
+      fontSize: 12,
+    },
+
+    actionBtn: {
+      flex: 1,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+
     actionGradient: {
       flexDirection: "row",
       alignItems: "center",
@@ -405,6 +2013,7 @@ export default function ProfileViewScreen() {
       gap: 8,
       paddingVertical: 14,
     },
+
     actionBtnSecondary: {
       flex: 1,
       flexDirection: "row",
@@ -417,25 +2026,44 @@ export default function ProfileViewScreen() {
       borderWidth: 1,
       borderColor: colors.border,
     },
+
     actionText: {
       color: colors.textPrimary,
       fontSize: 14,
       fontWeight: "700",
     },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // MODAL / BOTTOM SHEET
+    // ─────────────────────────────────────────────────────────────────────
+
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.55)",
       justifyContent: "flex-end",
     },
+
     menuSheet: {
+      width: "100%",
+      maxHeight: "90%",
       backgroundColor: colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      padding: 20,
+      paddingHorizontal: 20,
+      paddingTop: 20,
       paddingBottom: 36,
       borderTopWidth: 1,
       borderColor: colors.border,
     },
+
+    sheetScrollView: {
+      width: "100%",
+    },
+
+    sheetScrollContent: {
+      paddingBottom: 20,
+    },
+
     sheetHandle: {
       width: 36,
       height: 4,
@@ -444,6 +2072,7 @@ export default function ProfileViewScreen() {
       alignSelf: "center",
       marginBottom: 20,
     },
+
     menuRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -452,6 +2081,7 @@ export default function ProfileViewScreen() {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
+
     menuIcon: {
       width: 38,
       height: 38,
@@ -459,12 +2089,18 @@ export default function ProfileViewScreen() {
       justifyContent: "center",
       alignItems: "center",
     },
-    menuLabel: { fontSize: 15, fontWeight: "600" },
+
+    menuLabel: {
+      fontSize: 15,
+      fontWeight: "600",
+    },
+
     cancelRow: {
       borderBottomWidth: 0,
       justifyContent: "center",
       marginTop: 4,
     },
+
     cancelText: {
       fontSize: 15,
       fontWeight: "700",
@@ -495,7 +2131,9 @@ export default function ProfileViewScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
+
         <Text style={styles.title}>Profile</Text>
+
         {isMe ? (
           <TouchableOpacity
             style={styles.editBtn}
@@ -517,13 +2155,17 @@ export default function ProfileViewScreen() {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Hero card */}
         <View style={styles.heroCard}>
           <LinearGradient
             colors={[colors.surface, colors.background]}
             style={StyleSheet.absoluteFillObject}
           />
+
           <View style={styles.avatarWrap}>
             {profile?.avatar ? (
               <Image
@@ -539,6 +2181,7 @@ export default function ProfileViewScreen() {
                 <Text style={styles.avatarInitials}>{initials}</Text>
               </LinearGradient>
             )}
+
             <View
               style={[
                 styles.onlineIndicator,
@@ -584,25 +2227,10 @@ export default function ProfileViewScreen() {
 
         {/* Info rows */}
         <View style={styles.section}>
-          {/* {profile?.email && (
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <Ionicons
-                  name="mail-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-              </View>
-              <View>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{profile.email}</Text>
-              </View>
-            </View>
-          )} */}
-
           {(contactPhone || profile?.phone) && (
             <>
               {profile?.email && <View style={styles.divider} />}
+
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
                   <Ionicons
@@ -611,14 +2239,17 @@ export default function ProfileViewScreen() {
                     color={colors.primary}
                   />
                 </View>
+
                 <View style={{ flex: 1 }}>
                   <Text style={styles.infoLabel}>
                     {isInContacts ? "Mobile" : "Phone"}
                   </Text>
+
                   <Text style={styles.infoValue}>
                     {contactPhone || profile?.phone}
                   </Text>
                 </View>
+
                 {!isInContacts && !isMe && (
                   <View
                     style={{
@@ -651,10 +2282,14 @@ export default function ProfileViewScreen() {
           <View
             style={[
               styles.blockedBanner,
-              { backgroundColor: colors.surface, borderColor: colors.border },
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
             ]}
           >
             <Ionicons name="ban" size={22} color="#ff4757" />
+
             <Text
               style={[
                 styles.blockedBannerText,
@@ -663,6 +2298,7 @@ export default function ProfileViewScreen() {
             >
               You've blocked {displayName}. They can't message or call you.
             </Text>
+
             <TouchableOpacity
               onPress={handleBlock}
               style={styles.blockedBannerBtn}
@@ -691,6 +2327,7 @@ export default function ProfileViewScreen() {
                       size={20}
                       color="#fff"
                     />
+
                     <Text style={[styles.actionText, { color: "#fff" }]}>
                       Message
                     </Text>
@@ -714,6 +2351,7 @@ export default function ProfileViewScreen() {
                     size={20}
                     color={colors.primary}
                   />
+
                   <Text style={[styles.actionText, { color: colors.primary }]}>
                     Voice
                   </Text>
@@ -736,6 +2374,7 @@ export default function ProfileViewScreen() {
                     size={20}
                     color={colors.secondary}
                   />
+
                   <Text
                     style={[styles.actionText, { color: colors.secondary }]}
                   >
@@ -753,14 +2392,18 @@ export default function ProfileViewScreen() {
         visible={showMenu}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setShowMenu(false)}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowMenu(false)}
-        >
-          <Pressable style={styles.menuSheet} onPress={() => {}}>
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowMenu(false)}
+          />
+
+          <View style={styles.menuSheet}>
             <View style={styles.sheetHandle} />
+
             {[
               {
                 icon: isBlocked ? "ban" : "ban-outline",
@@ -770,12 +2413,12 @@ export default function ProfileViewScreen() {
                 color: "#ff4757",
                 onPress: handleBlock,
               },
-              // {
-              //   icon: "flag-outline",
-              //   label: `Report ${displayName}`,
-              //   color: "#ffc107",
-              //   onPress: handleReport,
-              // },
+              {
+                icon: "flag-outline",
+                label: `Report ${displayName}`,
+                color: "#ffc107",
+                onPress: handleReport,
+              },
             ].map(({ icon, label, color, onPress }) => (
               <TouchableOpacity
                 key={label}
@@ -784,22 +2427,36 @@ export default function ProfileViewScreen() {
                 activeOpacity={0.7}
               >
                 <View
-                  style={[styles.menuIcon, { backgroundColor: color + "18" }]}
+                  style={[
+                    styles.menuIcon,
+                    {
+                      backgroundColor: color + "18",
+                    },
+                  ]}
                 >
                   <Ionicons name={icon as any} size={18} color={color} />
                 </View>
+
                 <Text style={[styles.menuLabel, { color }]}>{label}</Text>
               </TouchableOpacity>
             ))}
+
             <TouchableOpacity
               style={[styles.menuRow, styles.cancelRow]}
               onPress={() => setShowMenu(false)}
             >
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
+
+      <ReportSheet
+        visible={showReportSheet}
+        displayName={displayName}
+        onClose={() => setShowReportSheet(false)}
+        onSubmit={submitReport}
+      />
     </View>
   );
 }

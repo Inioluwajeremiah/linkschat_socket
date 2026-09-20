@@ -17,12 +17,18 @@ function TabIcon({
   name,
   focused,
   badge,
+  liveCall,
 }: {
   name: string;
   focused: boolean;
   badge?: number;
+  // True if this device is currently on a call, OR there's an ongoing
+  // group call in some chat the user belongs to that they haven't
+  // joined yet — same indicator either way, per how this was asked for.
+  liveCall?: boolean;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const livePulse = useRef(new Animated.Value(1)).current;
   const { colors } = useTheme();
   useEffect(() => {
     Animated.spring(scale, {
@@ -33,6 +39,26 @@ function TabIcon({
     }).start();
   }, [focused]);
 
+  useEffect(() => {
+    if (!liveCall) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, {
+          toValue: 1.4,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(livePulse, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [liveCall]);
+
   return (
     <Animated.View style={[styles.iconWrap, { transform: [{ scale }] }]}>
       {badge !== undefined && badge > 0 && (
@@ -41,6 +67,15 @@ function TabIcon({
             {badge > 99 ? "99+" : badge}
           </Text>
         </View>
+      )}
+      {liveCall && (
+        <Animated.View
+          style={[
+            styles.liveDot,
+            { borderColor: colors.background },
+            { transform: [{ scale: livePulse }] },
+          ]}
+        />
       )}
       {focused && <View style={styles.activeDot} />}
     </Animated.View>
@@ -51,6 +86,11 @@ export default function TabsLayout() {
   const { colors } = useTheme();
   const chats = useAppSelector((s) => s.chat.chats);
   const totalUnread = chats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+
+  const myActiveCall = useAppSelector((s) => s.myCall.active);
+  const ongoingCallsByChatId = useAppSelector((s) => s.ongoingCalls.byChatId);
+  const hasLiveCallActivity =
+    !!myActiveCall || Object.keys(ongoingCallsByChatId).length > 0;
 
   return (
     <Tabs
@@ -117,7 +157,11 @@ export default function TabsLayout() {
           title: "Calls",
           tabBarIcon: ({ color, focused }) => (
             <>
-              <TabIcon name="call" focused={focused} />
+              <TabIcon
+                name="call"
+                focused={focused}
+                liveCall={hasLiveCallActivity}
+              />
               <Ionicons
                 name={focused ? "call" : "call-outline"}
                 size={24}
@@ -190,6 +234,17 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   badgeText: { fontSize: 10, fontWeight: "800" },
+  liveDot: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#00d4aa",
+    borderWidth: 2,
+    zIndex: 10,
+  },
   activeDot: {
     position: "absolute",
     bottom: -8,

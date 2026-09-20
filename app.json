@@ -49,7 +49,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#f5f7fa",
-          "image": "./assets/images/splash-icon-dark.png",
+          "image": "./assets/icons/splash-icon-dark.png",
           "dark": {
             "backgroundColor": "#0a0a14",
             "image": "./assets/icons/splash-icon-light.png"
@@ -104,17 +104,17 @@
           "ios": {
             "enabled": true,
             "activationRule": {
-              "supportsImageWithMaxCount": 5
+              "supportsImageWithMaxCount": 5,
+              "supportsMovieWithMaxCount": 5,
+              "supportsFileWithMaxCount": 5,
+              "supportsText": true,
+              "supportsWebUrlWithMaxCount": 1
             }
           },
           "android": {
             "enabled": true,
-            "singleShareMimeTypes": [
-              "image/*"
-            ],
-            "multipleShareMimeTypes": [
-              "image/*"
-            ]
+            "singleShareMimeTypes": ["*/*"],
+            "multipleShareMimeTypes": ["*/*"]
           }
         }
       ],
@@ -152,7 +152,7 @@
             }
           }
         },
-        "projectId": "961262cd-0d12-43cb-9509-3c193b89e39b"
+        "projectId": "054788a4-bea4-4813-9a57-d2c643b2503a"
       }
     }
   }

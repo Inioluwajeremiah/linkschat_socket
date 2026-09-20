@@ -14,6 +14,11 @@
 // import { useToast } from "../context/ToastContext";
 // import * as Notifications from "expo-notifications";
 // import * as Haptics from "expo-haptics";
+// import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
+// import {
+//   setOngoingCall,
+//   clearOngoingCall,
+// } from "@/store/slices/ongoingCallsSlice";
 
 // export const useSocket = () => {
 //   const dispatch = useAppDispatch();
@@ -21,6 +26,15 @@
 //   const toast = useToast();
 //   const { accessToken, isAuthenticated } = useAppSelector((s) => s.auth);
 //   const initializedRef = useRef(false);
+
+//   // Read fresh on every call:incoming via a ref so the socket listener
+//   // (registered once) always sees the current blocked list without
+//   // needing to be re-registered every time it changes.
+//   const blockedIdsRef = useRef<string[]>([]);
+//   const blockedIds = useAppSelector((s) => s.blocked.blockedIds);
+//   useEffect(() => {
+//     blockedIdsRef.current = blockedIds;
+//   }, [blockedIds]);
 
 //   useEffect(() => {
 //     if (!isAuthenticated || !accessToken) return;
@@ -55,19 +69,40 @@
 //       dispatch(addMessage({ chatId: message.chatId, message }));
 //     });
 
-//     // socket.on(
-//     //   "typing:start",
-//     //   ({ userId, chatId }: { userId: string; chatId: string }) => {
-//     //     dispatch(setTypingUser({ chatId, userId, isTyping: true }));
-//     //   }
-//     // );
+//     socket.on("user:blocked", ({ userId }: { userId: string }) => {
+//       console.log("blocked userId ====>>> ", userId);
 
-//     // socket.on(
-//     //   "typing:stop",
-//     //   ({ userId, chatId }: { userId: string; chatId: string }) => {
-//     //     dispatch(setTypingUser({ chatId, userId, isTyping: false }));
-//     //   }
-//     // );
+//       dispatch(addBlocked(userId));
+//     });
+//     socket.on("user:unblocked", ({ userId }: { userId: string }) => {
+//       dispatch(removeBlocked(userId));
+//     });
+
+//     // Fired when a group call starts, when someone joins an already
+//     // in-progress group call (to keep the "N in this call" count fresh
+//     // for everyone else), and as a catch-up when this device opens a
+//     // group chat that already has an active call going. Drives the
+//     // OngoingCallBanner shown inside a group chat screen.
+//     socket.on(
+//       "call:ongoing",
+//       (data: {
+//         chatId: string;
+//         callId: string;
+//         type: "audio" | "video";
+//         joinedCount: number;
+//       }) => {
+//         dispatch(
+//           setOngoingCall({
+//             chatId: data.chatId,
+//             call: {
+//               callId: data.callId,
+//               type: data.type,
+//               joinedCount: data.joinedCount,
+//             },
+//           })
+//         );
+//       }
+//     );
 
 //     socket.on(
 //       "activity:start",
@@ -101,9 +136,26 @@
 //         type: "audio" | "video";
 //         callerId: string;
 //         callerName: string;
+//         callerPhone: number;
 //         callerAvatar?: string;
 //         chatId?: string;
+//         // Sent by the backend when call:initiate was placed on a group
+//         // chat — the server derives these from the Chat doc itself, so
+//         // they're only present for group calls.
+//         isGroup?: boolean;
+//         groupName?: string;
+//         groupAvatar?: string;
 //       }) => {
+//         // Blocked callers get nothing — no ring, no vibration, no
+//         // notification, no navigation. WhatsApp doesn't tell a blocked
+//         // user they were blocked; the call just never seems to connect
+//         // on their end. This check has to live here, at the single
+//         // global entry point for all incoming calls, rather than in
+//         // IncomingCallScreen — by the time that screen would mount, the
+//         // ringtone/haptics/notification would have already fired.
+//         if (blockedIdsRef.current.includes(data.callerId)) {
+//           return;
+//         }
 //         // 1. Store in Redux
 //         dispatch(setIncomingCall(data));
 
@@ -124,7 +176,11 @@
 //                   ? "📹 Incoming Video Call"
 //                   : "📞 Incoming Voice Call"
 //               }`,
-//               body: `${data.callerName} is calling you`,
+//               body: data.isGroup
+//                 ? `${data.callerName} is calling in ${
+//                     data.groupName || "a group"
+//                   }`
+//                 : `${data.callerName} is calling you`,
 //               data: { type: "incoming_call", callId: data.callId },
 //               priority: Notifications.AndroidNotificationPriority.MAX,
 //               vibrate: [0, 500, 200, 500],
@@ -139,9 +195,16 @@
 //       }
 //     );
 
-//     socket.on("call:ended", ({ callId }: { callId: string }) => {
-//       dispatch(clearCall());
-//     });
+//     socket.on(
+//       "call:ended",
+//       ({ callId, chatId }: { callId: string; chatId?: string }) => {
+//         dispatch(clearCall());
+//         // chatId is only present now that socketService.ts's call:leave/
+//         // call:end broadcasts include it — clears the "call in progress"
+//         // banner for that specific chat.
+//         if (chatId) dispatch(clearOngoingCall({ chatId }));
+//       }
+//     );
 
 //     return () => {
 //       // Keep socket alive — only disconnect on logout
@@ -152,10 +215,16 @@
 // };
 
 import { useEffect, useRef } from "react";
+import { AppState } from "react-native";
 import { useRouter } from "expo-router";
 import { socketService } from "../services/socket";
+import { chatApi } from "../services/api";
 import { useAppDispatch, useAppSelector } from "./useRedux";
-import { addMessage, setUserActivity } from "../store/slices/chatSlice";
+import {
+  addMessage,
+  setChats,
+  setUserActivity,
+} from "../store/slices/chatSlice";
 import {
   setConnected,
   setOnlineUsers,
@@ -167,13 +236,19 @@ import { Message } from "../types";
 import { useToast } from "../context/ToastContext";
 import * as Notifications from "expo-notifications";
 import * as Haptics from "expo-haptics";
+import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
+import {
+  setOngoingCall,
+  clearOngoingCall,
+} from "@/store/slices/ongoingCallsSlice";
+import { useContactNameResolver } from "@/hooks/useContactName";
 
 export const useSocket = () => {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const toast = useToast();
+  const resolveContact = useContactNameResolver();
   const { accessToken, isAuthenticated } = useAppSelector((s) => s.auth);
-  const initializedRef = useRef(false);
 
   // Read fresh on every call:incoming via a ref so the socket listener
   // (registered once) always sees the current blocked list without
@@ -184,21 +259,70 @@ export const useSocket = () => {
     blockedIdsRef.current = blockedIds;
   }, [blockedIds]);
 
+  // While backgrounded the socket is dropped (after a short grace period) so
+  // the server sees us as offline and sends push notifications — an idle
+  // background socket kept the user "online" and silently suppressed them.
+  // Kept open during a call, whose signalling rides on it.
+  const inCallRef = useRef(false);
+  const inCall = useAppSelector((s) => !!s.myCall.active);
+  useEffect(() => {
+    inCallRef.current = inCall;
+  }, [inCall]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let pauseTimer: ReturnType<typeof setTimeout> | undefined;
+    const sub = AppState.addEventListener("change", (state) => {
+      clearTimeout(pauseTimer);
+      if (state === "active") {
+        socketService.resume();
+      } else if (state === "background") {
+        pauseTimer = setTimeout(() => {
+          if (!inCallRef.current) socketService.pause();
+        }, 10_000);
+      }
+    });
+    return () => {
+      clearTimeout(pauseTimer);
+      sub.remove();
+    };
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
-    if (initializedRef.current) return;
-    initializedRef.current = true;
+
+    // Listeners are attached once per socket. If one already exists (the
+    // token changed after a refresh, or we're resuming), just hand it the
+    // current token and make sure it's connected — rebuilding would stack
+    // duplicate listeners on the same socket.
+    if (socketService.getSocket()) {
+      socketService.setToken(accessToken);
+      socketService.resume();
+      return;
+    }
 
     const socket = socketService.connect(accessToken);
 
+    let hasConnectedBefore = false;
     socket.on("connect", () => {
       dispatch(setConnected(true));
-      toast.success("Connected", "You are online");
+      // Anything that arrived while we were offline or backgrounded was only
+      // delivered as a push notification — pull the chat list again so the
+      // UI catches up instead of waiting for the next app launch.
+      if (hasConnectedBefore) {
+        chatApi
+          .getChats()
+          .then((res) => {
+            if (res.success) dispatch(setChats(res.data.chats));
+          })
+          .catch(() => {});
+      }
+      hasConnectedBefore = true;
     });
 
     socket.on("disconnect", () => {
       dispatch(setConnected(false));
-      initializedRef.current = false;
     });
 
     socket.on("users:online", (userIds: string[]) => {
@@ -216,6 +340,41 @@ export const useSocket = () => {
     socket.on("message:new", (message: Message) => {
       dispatch(addMessage({ chatId: message.chatId, message }));
     });
+
+    socket.on("user:blocked", ({ userId }: { userId: string }) => {
+      console.log("blocked userId ====>>> ", userId);
+
+      dispatch(addBlocked(userId));
+    });
+    socket.on("user:unblocked", ({ userId }: { userId: string }) => {
+      dispatch(removeBlocked(userId));
+    });
+
+    // Fired when a group call starts, when someone joins an already
+    // in-progress group call (to keep the "N in this call" count fresh
+    // for everyone else), and as a catch-up when this device opens a
+    // group chat that already has an active call going. Drives the
+    // OngoingCallBanner shown inside a group chat screen.
+    socket.on(
+      "call:ongoing",
+      (data: {
+        chatId: string;
+        callId: string;
+        type: "audio" | "video";
+        joinedCount: number;
+      }) => {
+        dispatch(
+          setOngoingCall({
+            chatId: data.chatId,
+            call: {
+              callId: data.callId,
+              type: data.type,
+              joinedCount: data.joinedCount,
+            },
+          })
+        );
+      }
+    );
 
     socket.on(
       "activity:start",
@@ -282,6 +441,11 @@ export const useSocket = () => {
         // 3. Post a full-screen high-priority notification to wake a locked screen
         //    on Android. On iOS, PushKit/VoIP (from the push notification) handles this.
         try {
+          const { displayName: callerDisplayName } = resolveContact(
+            data.callerPhone?.toString(),
+            data.callerName
+          );
+
           await Notifications.scheduleNotificationAsync({
             content: {
               title: `${
@@ -290,10 +454,10 @@ export const useSocket = () => {
                   : "📞 Incoming Voice Call"
               }`,
               body: data.isGroup
-                ? `${data.callerName} is calling in ${
+                ? `${callerDisplayName} is calling in ${
                     data.groupName || "a group"
                   }`
-                : `${data.callerName} is calling you`,
+                : `${callerDisplayName} is calling you`,
               data: { type: "incoming_call", callId: data.callId },
               priority: Notifications.AndroidNotificationPriority.MAX,
               vibrate: [0, 500, 200, 500],
@@ -308,9 +472,16 @@ export const useSocket = () => {
       }
     );
 
-    socket.on("call:ended", ({ callId }: { callId: string }) => {
-      dispatch(clearCall());
-    });
+    socket.on(
+      "call:ended",
+      ({ callId, chatId }: { callId: string; chatId?: string }) => {
+        dispatch(clearCall());
+        // chatId is only present now that socketService.ts's call:leave/
+        // call:end broadcasts include it — clears the "call in progress"
+        // banner for that specific chat.
+        if (chatId) dispatch(clearOngoingCall({ chatId }));
+      }
+    );
 
     return () => {
       // Keep socket alive — only disconnect on logout

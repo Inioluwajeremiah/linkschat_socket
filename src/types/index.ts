@@ -44,6 +44,13 @@ export interface Message {
   createdAt: string;
   updatedAt: string;
   tempId?: string;
+  // Client-only delivery state for messages still in the offline outbox.
+  // Absent on anything the server has confirmed.
+  //   queued  → waiting for a connection
+  //   sending → upload / send in progress
+  //   failed  → the server rejected it (or the file is gone); user can retry or delete
+  _status?: "queued" | "sending" | "failed";
+  _error?: string;
 }
 
 // services/api.ts — add `type` to the interface
@@ -163,8 +170,16 @@ export interface CallHistory {
   participants: User[];
   chatId?: string;
   startedAt?: string;
+  isGroup?: boolean;
+  chat?: {
+    _id: string;
+    name?: string;
+    avatar?: string;
+    type?: "private" | "group";
+  };
   endedAt?: string;
   duration?: number;
+
   createdAt: string;
 }
 
@@ -181,6 +196,10 @@ export interface ChatState {
   chats: Chat[];
   activeChat: Chat | null | string;
   messages: Record<string, Message[]>;
+  // Chats whose message list was established by a full load (server or
+  // offline cache) rather than assembled from individual incoming messages.
+  // Only those lists may overwrite the saved history for that chat.
+  messagesLoaded: Record<string, boolean>;
   activityUsers: Record<string, Record<string, UserActivity>>;
   // typingUsers: Record<string, string[]>;
   isLoading: boolean;

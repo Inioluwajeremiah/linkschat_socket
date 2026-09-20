@@ -176,6 +176,7 @@ const initialState: ChatState = {
   chats: [],
   activeChat: null,
   messages: {},
+  messagesLoaded: {},
   // typingUsers: {},
   activityUsers: {},
   isLoading: false,
@@ -203,7 +204,43 @@ const chatSlice = createSlice({
       state,
       action: PayloadAction<{ chatId: string; messages: Message[] }>
     ) => {
-      state.messages[action.payload.chatId] = action.payload.messages;
+      const { chatId, messages } = action.payload;
+      // Messages still in the offline outbox live only in this array, so a
+      // reload from the server/cache must not wipe them (they're newer than
+      // anything the server has, hence appended last).
+      const pending = (state.messages[chatId] || []).filter(
+        (m) =>
+          m._status &&
+          !messages.some((n) => n.tempId && n.tempId === m.tempId)
+      );
+      state.messages[chatId] = pending.length
+        ? [...messages, ...pending]
+        : messages;
+      state.messagesLoaded[chatId] = true;
+    },
+    // Folds freshly fetched messages into what's already loaded (updating
+    // ones we have, adding new ones) without discarding older pages or
+    // pending sends — used to catch up after a reconnect.
+    mergeMessages: (
+      state,
+      action: PayloadAction<{ chatId: string; messages: Message[] }>
+    ) => {
+      const { chatId, messages } = action.payload;
+      const list = state.messages[chatId] ?? [];
+      const indexById = new Map(list.map((m, i) => [m._id, i]));
+      for (const m of messages) {
+        const i = indexById.get(m._id);
+        if (i !== undefined) list[i] = m;
+        else list.push(m);
+      }
+      const confirmed = list
+        .filter((m) => !m._status)
+        .sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      const pending = list.filter((m) => m._status);
+      state.messages[chatId] = [...confirmed, ...pending];
     },
     prependMessages: (
       state,
@@ -230,7 +267,14 @@ const chatSlice = createSlice({
       );
 
       if (tempIdx !== -1) {
-        state.messages[chatId][tempIdx] = message;
+        // A reload may already have brought in the confirmed copy of this
+        // message (same _id); then just drop the placeholder rather than
+        // showing it twice.
+        const duplicate = state.messages[chatId].some(
+          (m, i) => i !== tempIdx && m._id === message._id
+        );
+        if (duplicate) state.messages[chatId].splice(tempIdx, 1);
+        else state.messages[chatId][tempIdx] = message;
       } else {
         const exists = state.messages[chatId].some(
           (m) => m._id === message._id
@@ -440,6 +484,9 @@ const chatSlice = createSlice({
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
+    // Sign-out: forget the previous account's chats/messages, so the next
+    // account can't see them (or have them written into its offline cache).
+    resetChat: () => initialState,
   },
 });
 
@@ -448,6 +495,7 @@ export const {
   addOrUpdateChat,
   setActiveChat,
   setMessages,
+  mergeMessages,
   prependMessages,
   addMessage,
   updateMessage,
@@ -458,5 +506,6 @@ export const {
   updateUnreadCount,
   markMessagesRead,
   setLoading,
+  resetChat,
 } = chatSlice.actions;
 export default chatSlice.reducer;

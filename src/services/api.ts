@@ -1,5 +1,6 @@
 // import AsyncStorage from "@react-native-async-storage/async-storage";
 // import { API_BASE_URL } from "../constants";
+// import { MessageSearchResult } from "../types";
 
 // class ApiService {
 //   private baseUrl: string;
@@ -66,7 +67,7 @@
 //       data
 //     ),
 
-//   login: (data: { email: string; fcmToken?: string; phone: string }) =>
+//   login: (data: { email: string; fcmToken?: string; phone?: string }) =>
 //     api.post<{ success: boolean; data: { userId: string; email: string } }>(
 //       "/auth/login",
 //       data
@@ -94,12 +95,51 @@
 //   logout: (fcmToken?: string) => api.post("/auth/logout", { fcmToken }),
 // };
 
+// // export const searchApi = {
+// //   searchMessages: (q: string) =>
+// //     api
+// //       .get<{ success: boolean; data: { results: MessageSearchResult[] } }>(
+// //         `/search/messages?q=${encodeURIComponent(q)}`
+// //       )
+// //       .then((r) => r.data),
+// //   getMessageContext: (messageId: string, limit = 40) =>
+// //     api
+// //       .get<{
+// //         success: boolean;
+// //         data: {
+// //           chatId: string;
+// //           messages: import("../types").Message[];
+// //           hasMoreBefore: boolean;
+// //           hasMoreAfter: boolean;
+// //         };
+// //       }>(`/search/messages/${messageId}/context?limit=${limit}`)
+// //       .then((r) => r.data),
+// // };
+
+// export const searchApi = {
+//   searchMessages: (q: string) =>
+//     api.get<{ success: boolean; data: { results: MessageSearchResult[] } }>(
+//       `/search/messages?q=${encodeURIComponent(q)}`
+//     ),
+
+//   getMessageContext: (messageId: string, limit = 40) =>
+//     api.get<{
+//       success: boolean;
+//       data: {
+//         chatId: string;
+//         messages: import("../types").Message[];
+//         hasMoreBefore: boolean;
+//         hasMoreAfter: boolean;
+//       };
+//     }>(`/search/messages/${messageId}/context?limit=${limit}`),
+// };
 // // Chats
 // export const chatApi = {
 //   getChats: (page = 1) =>
-//     api.get<{ success: boolean; data: { chats: import("../types").Chat[] } }>(
-//       `/chats?page=${page}`
-//     ),
+//     api.get<{
+//       success: boolean;
+//       data: { chats: import("../types").Chat[] };
+//     }>(`/chats?page=${page}`),
 
 //   createPrivateChat: (recipientId: string) =>
 //     api.post<{ success: boolean; data: { chat: import("../types").Chat } }>(
@@ -111,16 +151,37 @@
 //     name: string;
 //     participantIds: string[];
 //     description?: string;
+//     avatar?: string;
 //   }) =>
 //     api.post<{ success: boolean; data: { chat: import("../types").Chat } }>(
 //       "/chats/group",
 //       data
 //     ),
 
+//   // getMessages: (chatId: string, page = 1, before?: string) =>
+//   //   api.get<{
+//   //     success: boolean;
+//   //     data: { messages: import("../types").Message[]; hasMore: boolean };
+//   //   }>(
+//   //     `/chats/${chatId}/messages?page=${page}${
+//   //       before ? `&before=${before}` : ""
+//   //     }`
+//   //   ),
+
 //   getMessages: (chatId: string, page = 1, before?: string) =>
 //     api.get<{
 //       success: boolean;
-//       data: { messages: import("../types").Message[]; hasMore: boolean };
+//       data: {
+//         messages: import("../types").Message[];
+//         pagination: {
+//           total: number;
+//           page: number;
+//           limit: number;
+//           totalPages: number;
+//           hasNextPage: boolean;
+//           hasPrevPage: boolean;
+//         };
+//       };
 //     }>(
 //       `/chats/${chatId}/messages?page=${page}${
 //         before ? `&before=${before}` : ""
@@ -134,6 +195,9 @@
 //       type?: string;
 //       mediaUrl?: string;
 //       replyTo?: string;
+//       mediaName: string;
+//       mediaSize: number;
+//       mediaDuration: number;
 //     }
 //   ) =>
 //     api.post<{
@@ -150,9 +214,10 @@
 // // Users
 // export const userApi = {
 //   searchUsers: (query: string) =>
-//     api.get<{ success: boolean; data: { users: import("../types").User[] } }>(
-//       `/users/search?q=${encodeURIComponent(query)}`
-//     ),
+//     api.get<{
+//       success: boolean;
+//       data: { users: import("../types").User[] };
+//     }>(`/users/search?q=${encodeURIComponent(query)}`),
 
 //   getContacts: () =>
 //     api.get<{
@@ -162,16 +227,35 @@
 
 //   addContact: (contactId: string) => api.post("/users/contacts", { contactId }),
 
-//   updateProfile: (data: {
-//     name?: string;
-//     bio?: string;
-//     avatar?: string;
-//     phone?: string;
-//   }) =>
-//     api.patch<{ success: boolean; data: { user: import("../types").User } }>(
-//       "/users/profile",
-//       data
-//     ),
+//   // updateProfile: (data: {
+//   //   name?: string;
+//   //   bio?: string;
+//   //   avatar?: string;
+//   //   phone?: string;
+//   // }) =>
+//   //   api.patch<{ success: boolean; data: { user: import("../types").User } }>(
+//   //     "/users/profile",
+//   //     data
+//   //   ),
+
+//   updateProfile: async (
+//     formData: FormData
+//   ): Promise<{
+//     success: boolean;
+//     data: { user: import("../types").User };
+//   }> => {
+//     const token = await AsyncStorage.getItem("accessToken"); // match how you get token elsewhere
+//     const response = await fetch(`${API_BASE_URL}/users/profile`, {
+//       method: "PATCH",
+//       headers: {
+//         Authorization: `Bearer ${token}`,
+//       },
+//       body: formData,
+//     });
+//     const json = await response.json();
+//     if (!json.success) throw new Error(json.message);
+//     return json;
+//   },
 
 //   getUserProfile: (userId: string) =>
 //     api.get<{ success: boolean; data: { user: import("../types").User } }>(
@@ -196,18 +280,27 @@
 //     mediaUrl?: string;
 //     backgroundColor?: string;
 //     textColor?: string;
+//     thumbnail?: string;
+//     duration?: number;
+//     mediaDuration?: number;
+//     trimStart?: number;
+//     trimEnd?: number;
 //   }) =>
-//     api.post<{ success: boolean; data: { status: import("../types").Status } }>(
-//       "/status",
-//       data
-//     ),
+//     api.post<{
+//       success: boolean;
+//       data: { status: import("../types").Status };
+//     }>("/status", data),
 
 //   viewStatus: (statusId: string) => api.post(`/status/${statusId}/view`),
 
 //   reactToStatus: (statusId: string, emoji: string) =>
 //     api.post(`/status/${statusId}/react`, { emoji }),
 
-//   deleteStatus: (statusId: string) => api.delete(`/status/${statusId}`),
+//   deleteStatus: (statusId: string) =>
+//     api.delete<{
+//       success: boolean;
+//       message: string;
+//     }>(`/status/${statusId}`),
 // };
 
 // // Platform contacts (phone-matched)
@@ -221,11 +314,11 @@
 
 // // Phone contacts sync
 // export const contactsSyncApi = {
-//   sync: (phoneNumbers: string[]) =>
+//   sync: (phoneNumbers: string[], deviceCountryCode: string) =>
 //     api.post<{
 //       success: boolean;
 //       data: { users: import("../types").User[]; total: number };
-//     }>("/users/contacts/sync", { phoneNumbers }),
+//     }>("/users/contacts/sync", { phoneNumbers, deviceCountryCode }),
 // };
 
 // // Calls
@@ -250,13 +343,20 @@
 // // Reels
 // export const reelApi = {
 //   getReels: (page = 1, trending = false) =>
-//     api.get<{ success: boolean; data: { reels: import("../types").Reel[] } }>(
-//       `/reels?page=${page}&trending=${trending}`
-//     ),
+//     api.get<{
+//       success: boolean;
+//       data: { reels: import("../types").Reel[] };
+//     }>(`/reels?page=${page}&trending=${trending}`),
 //   createReel: (data: {
-//     videoUrl: string;
+//     // videoUrl: string;
+//     // thumbnail?: string;
+//     // caption?: string;
+//     // duration?: number;
+//     type: "image" | "video";
+//     mediaUrl: string;
 //     thumbnail?: string;
 //     caption?: string;
+//     duration?: number;
 //   }) =>
 //     api.post<{ success: boolean; data: { reel: import("../types").Reel } }>(
 //       "/reels",
@@ -273,10 +373,19 @@
 //   deleteReel: (reelId: string) => api.delete(`/reels/${reelId}`),
 // };
 
+// // Get blocked users list
+// export const blockedUsersApi = {
+//   getBlockedUsers: () =>
+//     api.get<{
+//       success: boolean;
+//       data: { users: import("../types").User[] };
+//     }>("/users/blocked"),
+// };
+
 // // Privacy & safety
 // export const privacyApi = {
 //   getSettings: () =>
-//     api.get<{ success: boolean; data: { settings: any } }>("/users-privacy"),
+//     api.get<{ success: boolean; data: { settings: any } }>("/users/privacy"),
 //   updatePrivacy: (settings: Partial<import("../types").PrivacySettings>) =>
 //     api.patch("/users/privacy", settings),
 //   blockUser: (targetUserId: string) =>
@@ -322,9 +431,89 @@
 //   ) => api.patch(`/chats/${chatId}/group/info`, data),
 // };
 
+// // Upload (S3 presigned)
+// export const uploadApi = {
+//   getPresignedUrl: (filename: string, contentType: string, type: string) =>
+//     api.post<{
+//       success: boolean;
+//       data: { uploadUrl: string; publicUrl: string; key: string };
+//     }>("/upload/presign", { filename, contentType, type }),
+//   uploadAvatar: async (uri: string): Promise<string> => {
+//     const token = await AsyncStorage.getItem("accessToken");
+//     const formData = new FormData();
+//     const filename = uri.split("/").pop() || "avatar.jpg";
+//     formData.append("avatar", {
+//       uri,
+//       name: filename,
+//       type: "image/jpeg",
+//     } as any);
+//     const res = await fetch(`${API_BASE_URL}/upload/avatar`, {
+//       method: "POST",
+//       headers: { Authorization: `Bearer ${token}` },
+//       body: formData,
+//     });
+//     const data = await res.json();
+//     if (!data.success) throw new Error(data.message);
+//     return data.data.url;
+//   },
+// };
+
+// // Upload a file directly to S3 using a presigned URL
+// export const uploadFileToS3 = async (
+//   localUri: string,
+//   filename: string,
+//   contentType: string,
+//   type: string
+// ): Promise<string> => {
+//   const { data } = await uploadApi.getPresignedUrl(filename, contentType, type);
+//   const fileContent = await fetch(localUri);
+//   const blob = await fileContent.blob();
+//   await fetch(data.uploadUrl, {
+//     method: "PUT",
+//     headers: { "Content-Type": contentType },
+//     body: blob,
+//   });
+//   return data.publicUrl;
+// };
+
+// // New message actions
+// export const messageActionsApi = {
+//   editMessage: (messageId: string, content: string) =>
+//     api.patch(`/chats/messages/${messageId}/edit`, { content }),
+//   deleteMessage: (messageId: string, forEveryone: boolean) =>
+//     api.delete(`/chats/messages/${messageId}`, { forEveryone }),
+//   reactToMessage: (messageId: string, emoji: string) =>
+//     api.post(`/chats/messages/${messageId}/react`, { emoji }),
+//   starMessage: (messageId: string) =>
+//     api.post(`/chats/messages/${messageId}/star`),
+//   forwardMessage: (messageId: string, targetChatIds: string[]) =>
+//     api.post(`/chats/messages/${messageId}/forward`, { targetChatIds }),
+//   markChatRead: (chatId: string) => api.patch(`/chats/${chatId}/read`),
+// };
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants";
 import { MessageSearchResult } from "../types";
+
+// Carries the HTTP status code (when there is one) alongside the message,
+// so callers can distinguish "server said 401" from "request failed for
+// some other reason" (network failure, timeout, 5xx) — the old plain
+// Error had no way to make that distinction, which is what let a
+// transient network blip during session restoration get treated
+// identically to a genuinely dead token. Extends Error, so every existing
+// `err instanceof Error ? err.message : ...` call site keeps working
+// unchanged.
+const REQUEST_TIMEOUT_MS = 15000;
+const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+
+export class ApiError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 class ApiService {
   private baseUrl: string;
@@ -349,16 +538,46 @@ class ApiService {
   ): Promise<T> {
     const headers = await this.getHeaders();
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method,
-      headers: { ...headers, ...customHeaders },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    // React Native's fetch has no timeout of its own: on a stalled
+    // connection a request can hang indefinitely, which froze session
+    // restore on the loading screen. Abort after REQUEST_TIMEOUT_MS so the
+    // failure surfaces (as a status-less ApiError, i.e. "network problem").
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const data = await response.json();
+    let response: Response;
+    let data: any;
+    try {
+      response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method,
+        headers: { ...headers, ...customHeaders },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+    } catch (networkErr) {
+      // fetch() itself threw — no response reached at all (offline, DNS
+      // failure, timeout, server unreachable). No status code exists for
+      // this case, which is itself the signal: this is NOT proof of an
+      // invalid session, just a failed attempt.
+      throw new ApiError(
+        controller.signal.aborted
+          ? "Request timed out"
+          : networkErr instanceof Error
+            ? networkErr.message
+            : "Network request failed"
+      );
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
-      throw new Error(data.message || "Request failed");
+      throw new ApiError(data.message || "Request failed", response.status);
     }
 
     return data;
@@ -415,6 +634,19 @@ export const authApi = {
       success: boolean;
       data: { user: import("../types").User; streamToken: string };
     }>("/auth/me"),
+
+  // NEW — backend's POST /auth/refresh already existed, this was just
+  // never wired up on the client, so the persisted refresh token has
+  // never actually been used for anything until now.
+  refreshToken: (refreshToken: string) =>
+    api.post<{
+      success: boolean;
+      // refreshToken is rotated by newer servers (sliding 90-day session).
+      data: { accessToken: string; refreshToken?: string };
+    }>(
+      "/auth/refresh",
+      { refreshToken }
+    ),
 
   logout: (fcmToken?: string) => api.post("/auth/logout", { fcmToken }),
 };
@@ -792,11 +1024,30 @@ export const uploadFileToS3 = async (
   const { data } = await uploadApi.getPresignedUrl(filename, contentType, type);
   const fileContent = await fetch(localUri);
   const blob = await fileContent.blob();
-  await fetch(data.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: blob,
-  });
+
+  // Uploads can legitimately take a while on a slow link, but must not hang
+  // forever (RN's fetch has no timeout of its own).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+  try {
+    const res = await fetch(data.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: blob,
+      signal: controller.signal,
+    });
+    // fetch() only rejects on network failure — a 403/500 from S3 resolves
+    // normally. Without this check a rejected upload was treated as success
+    // and the message went out pointing at a file that doesn't exist.
+    if (!res.ok) throw new ApiError("Upload failed", res.status);
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(
+      controller.signal.aborted ? "Upload timed out" : "Network request failed"
+    );
+  } finally {
+    clearTimeout(timer);
+  }
   return data.publicUrl;
 };
 

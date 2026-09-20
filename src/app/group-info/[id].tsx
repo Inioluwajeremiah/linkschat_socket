@@ -15,11 +15,12 @@
 // import { Ionicons } from "@expo/vector-icons";
 // import { LinearGradient } from "expo-linear-gradient";
 // import { Image } from "expo-image";
+// import * as ImagePicker from "expo-image-picker";
 // import { useTheme } from "@/context/ThemeContext";
 // import { useToast } from "@/context/ToastContext";
 // import { useAppSelector } from "@/hooks/useRedux";
 // import { Chat, ChatParticipant, User } from "@/types";
-// import { chatApi, groupApi, userApi } from "@/services/api";
+// import { chatApi, groupApi, userApi, uploadFileToS3 } from "@/services/api";
 
 // export default function GroupInfoScreen() {
 //   const { id: chatId } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +34,8 @@
 //   const [editing, setEditing] = useState(false);
 //   const [name, setName] = useState("");
 //   const [description, setDescription] = useState("");
+//   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+//   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 //   const [saving, setSaving] = useState(false);
 //   const [searchQ, setSearchQ] = useState("");
 //   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -60,6 +63,17 @@
 //   const myRole = chat?.participants.find((p) => p.user._id === me?._id)?.role;
 //   const isAdmin = myRole === "admin" || myRole === "owner";
 
+//   const pickAvatar = async () => {
+//     const result = await ImagePicker.launchImageLibraryAsync({
+//       mediaTypes: ImagePicker.MediaTypeOptions.Images,
+//       allowsEditing: true,
+//       aspect: [1, 1],
+//       quality: 0.8,
+//     });
+//     if (result.canceled) return;
+//     setAvatarUri(result.assets[0].uri);
+//   };
+
 //   const saveInfo = async () => {
 //     if (!name.trim()) {
 //       toast.error("Group name required");
@@ -67,17 +81,34 @@
 //     }
 //     setSaving(true);
 //     try {
+//       // Upload the newly picked avatar (if any) before saving. Local file
+//       // URIs only resolve on this device — every member needs the S3 URL.
+//       let avatarUrl: string | undefined;
+//       if (avatarUri) {
+//         setUploadingAvatar(true);
+//         avatarUrl = await uploadFileToS3(
+//           avatarUri,
+//           "group-avatar.jpg",
+//           "image/jpeg",
+//           "image"
+//         );
+//         setUploadingAvatar(false);
+//       }
+
 //       await groupApi.updateInfo(chatId, {
 //         name: name.trim(),
 //         description: description.trim(),
+//         ...(avatarUrl ? { avatar: avatarUrl } : {}),
 //       });
 //       toast.success("Group updated");
 //       setEditing(false);
+//       setAvatarUri(null);
 //       load();
 //     } catch {
 //       toast.error("Failed to update");
 //     } finally {
 //       setSaving(false);
+//       setUploadingAvatar(false);
 //     }
 //   };
 
@@ -188,10 +219,7 @@
 //     .toUpperCase();
 
 //   return (
-//     <SafeAreaView
-//       style={[styles.container, { backgroundColor: colors.background }]}
-//       edges={["top"]}
-//     >
+//     <View style={[styles.container, { backgroundColor: colors.background }]}>
 //       <View style={[styles.header, { borderBottomColor: colors.border }]}>
 //         <TouchableOpacity
 //           style={[
@@ -207,7 +235,9 @@
 //         </Text>
 //         {isAdmin && (
 //           <TouchableOpacity
-//             onPress={() => (editing ? saveInfo() : setEditing(true))}
+//             onPress={() =>
+//               editing ? saveInfo() : (setEditing(true), setAvatarUri(null))
+//             }
 //             style={styles.editBtn}
 //           >
 //             {saving ? (
@@ -231,7 +261,41 @@
 //             colors={[colors.surface, colors.background]}
 //             style={StyleSheet.absoluteFillObject}
 //           />
-//           {chat?.avatar ? (
+
+//           {editing ? (
+//             <TouchableOpacity
+//               onPress={pickAvatar}
+//               activeOpacity={0.8}
+//               style={styles.avatarEditWrap}
+//             >
+//               {avatarUri || chat?.avatar ? (
+//                 <Image
+//                   source={{ uri: avatarUri || chat!.avatar }}
+//                   style={styles.groupAvatar}
+//                   contentFit="cover"
+//                 />
+//               ) : (
+//                 <LinearGradient
+//                   colors={["#00d4aa", "#5b8dee"]}
+//                   style={styles.groupAvatarFb}
+//                 >
+//                   <Text style={styles.groupInitials}>{initials}</Text>
+//                 </LinearGradient>
+//               )}
+//               <View
+//                 style={[
+//                   styles.avatarEditBadge,
+//                   { borderColor: colors.surface },
+//                 ]}
+//               >
+//                 {uploadingAvatar ? (
+//                   <ActivityIndicator size="small" color="#fff" />
+//                 ) : (
+//                   <Ionicons name="camera" size={14} color="#fff" />
+//                 )}
+//               </View>
+//             </TouchableOpacity>
+//           ) : chat?.avatar ? (
 //             <Image
 //               source={{ uri: chat.avatar }}
 //               style={styles.groupAvatar}
@@ -245,6 +309,7 @@
 //               <Text style={styles.groupInitials}>{initials}</Text>
 //             </LinearGradient>
 //           )}
+
 //           {editing ? (
 //             <>
 //               <TextInput
@@ -496,7 +561,7 @@
 //           </TouchableOpacity>
 //         </View>
 //       </ScrollView>
-//     </SafeAreaView>
+//     </View>
 //   );
 // }
 
@@ -534,6 +599,19 @@
 //     gap: 8,
 //     borderWidth: 1,
 //     overflow: "hidden",
+//   },
+//   avatarEditWrap: { position: "relative" },
+//   avatarEditBadge: {
+//     position: "absolute",
+//     bottom: 0,
+//     right: 0,
+//     width: 28,
+//     height: 28,
+//     borderRadius: 14,
+//     backgroundColor: "#00d4aa",
+//     justifyContent: "center",
+//     alignItems: "center",
+//     borderWidth: 2,
 //   },
 //   groupAvatar: { width: 90, height: 90, borderRadius: 45 },
 //   groupAvatarFb: {
@@ -685,6 +763,7 @@ import { useToast } from "@/context/ToastContext";
 import { useAppSelector } from "@/hooks/useRedux";
 import { Chat, ChatParticipant, User } from "@/types";
 import { chatApi, groupApi, userApi, uploadFileToS3 } from "@/services/api";
+import { useContactNameResolver } from "@/hooks/useContactName";
 
 export default function GroupInfoScreen() {
   const { id: chatId } = useLocalSearchParams<{ id: string }>();
@@ -692,6 +771,7 @@ export default function GroupInfoScreen() {
   const { colors } = useTheme();
   const toast = useToast();
   const { user: me } = useAppSelector((s) => s.auth);
+  const resolveContact = useContactNameResolver();
 
   const [chat, setChat] = useState<Chat | null>(null);
   const [loading, setLoading] = useState(true);
@@ -809,7 +889,8 @@ export default function GroupInfoScreen() {
   };
 
   const removeMember = (p: ChatParticipant) => {
-    Alert.alert("Remove Member", `Remove ${p.user.name} from the group?`, [
+    const { displayName } = resolveContact(p.user.phone, p.user.name);
+    Alert.alert("Remove Member", `Remove ${displayName} from the group?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Remove",
@@ -829,10 +910,11 @@ export default function GroupInfoScreen() {
 
   const toggleAdmin = async (p: ChatParticipant) => {
     const makeAdmin = p.role !== "admin";
+    const { displayName } = resolveContact(p.user.phone, p.user.name);
     try {
       await groupApi.toggleAdmin(chatId, p.user._id, makeAdmin);
       toast.success(
-        makeAdmin ? `${p.user.name} is now an admin` : "Admin removed"
+        makeAdmin ? `${displayName} is now an admin` : "Admin removed"
       );
       load();
     } catch {
@@ -1041,9 +1123,13 @@ export default function GroupInfoScreen() {
               />
             </View>
             {searchResults.slice(0, 5).map((u) => {
-              const init = u.name
+              const { displayName: resultDisplayName } = resolveContact(
+                u.phone,
+                u.name
+              );
+              const init = resultDisplayName
                 .split(" ")
-                .map((w) => w[0])
+                .map((w: string) => w[0])
                 .join("")
                 .slice(0, 2)
                 .toUpperCase();
@@ -1073,7 +1159,7 @@ export default function GroupInfoScreen() {
                     <Text
                       style={[styles.resultName, { color: colors.textPrimary }]}
                     >
-                      {u.name}
+                      {resultDisplayName}
                     </Text>
                     <Text
                       style={[styles.resultSub, { color: colors.textMuted }]}
@@ -1118,9 +1204,13 @@ export default function GroupInfoScreen() {
               const pUser = p.user;
               const isMe = pUser._id === me?._id;
               const canManage = isAdmin && !isMe && p.role !== "owner";
-              const init = pUser.name
+              const { displayName: memberDisplayName } = resolveContact(
+                pUser.phone,
+                pUser.name
+              );
+              const init = memberDisplayName
                 .split(" ")
-                .map((w) => w[0])
+                .map((w: string) => w[0])
                 .join("")
                 .slice(0, 2)
                 .toUpperCase();
@@ -1163,7 +1253,7 @@ export default function GroupInfoScreen() {
                     <Text
                       style={[styles.memberName, { color: colors.textPrimary }]}
                     >
-                      {isMe ? "You" : pUser.name}
+                      {isMe ? "You" : memberDisplayName}
                     </Text>
                     {p.role !== "member" && (
                       <Text style={styles.roleText}>

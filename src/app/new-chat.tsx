@@ -1636,6 +1636,8 @@ export default function NewChatScreen() {
       const res = await userApi.getContacts();
       if (!isMountedRef.current) return;
       if (res.success) {
+        console.log("load contacts in new chat ===>>> ", res.data.contacts);
+
         setContacts(res.data.contacts as User[]);
       } else {
         showError("Couldn't load contacts", "Try again in a moment.");

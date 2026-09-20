@@ -20,9 +20,11 @@
 // import { User } from "../types";
 // import { useAppDispatch } from "../hooks/useRedux";
 // import { addOrUpdateChat } from "../store/slices/chatSlice";
+// import { useContactNameResolver } from "@/hooks/useContactName";
 
 // export default function NewGroupScreen() {
 //   const { colors, isDark } = useTheme();
+//   const resolveContact = useContactNameResolver();
 //   const router = useRouter();
 //   const dispatch = useAppDispatch();
 //   const [step, setStep] = useState<"select" | "name">("select");
@@ -36,10 +38,10 @@
 //   const [platformContacts, setPlatformContacts] = useState<User[]>([]);
 //   const [loadingContacts, setLoadingContacts] = useState(true);
 
-//   // Replace your existing `users` / `results` display logic with this
-//   const displayUsers =
-//     query.trim().length > 0 ? searchResults : platformContacts;
 //   const isSearching = query.trim().length > 0;
+//   // When searching, show live search results (`users`); otherwise show the
+//   // user's existing platform contacts as the default browsing list.
+//   const displayUsers = isSearching ? users : platformContacts;
 
 //   useEffect(() => {
 //     const loadPlatformContacts = async () => {
@@ -98,7 +100,7 @@
 //       return;
 //     }
 //     if (selected.length < 1) {
-//       Alert.alert("Error", "Add at least 2 members");
+//       Alert.alert("Error", "Add at least 1 member");
 //       return;
 //     }
 
@@ -206,95 +208,22 @@
 //             </View>
 //           </View>
 
-//           {/* <FlatList
-//             data={users}
-//             keyExtractor={(u) => u._id}
-//             renderItem={({ item }) => {
-//               const isSelected = selected.some((s) => s._id === item._id);
-//               const initials = item.name
-//                 .split(" ")
-//                 .map((w) => w[0])
-//                 .join("")
-//                 .slice(0, 2)
-//                 .toUpperCase();
-//               return (
-//                 <TouchableOpacity
-//                   style={styles.userItem}
-//                   onPress={() => toggleSelect(item)}
-//                   activeOpacity={0.7}
-//                 >
-//                   <View style={styles.avatarWrap}>
-//                     {item.avatar ? (
-//                       <Image
-//                         source={{ uri: item.avatar }}
-//                         style={styles.avatar}
-//                         contentFit="cover"
-//                       />
-//                     ) : (
-//                       <LinearGradient
-//                         colors={[colors.primary, colors.secondary]}
-//                         style={styles.avatarFallback}
-//                       >
-//                         <Text
-//                           style={[
-//                             styles.initials,
-//                             { color: colors.textInverse },
-//                           ]}
-//                         >
-//                           {initials}
-//                         </Text>
-//                       </LinearGradient>
-//                     )}
-//                   </View>
-//                   <View style={styles.userInfo}>
-//                     <Text
-//                       style={[styles.userName, { color: colors.textPrimary }]}
-//                     >
-//                       {item.name}
-//                     </Text>
-//                     <Text
-//                       style={[styles.userSub, { color: colors.textSecondary }]}
-//                     >
-//                       {item.bio || item.email}
-//                     </Text>
-//                   </View>
-//                   <View
-//                     style={[
-//                       styles.checkCircle,
-//                       { borderColor: colors.border },
-//                       isSelected && styles.checkCircleActive,
-//                     ]}
-//                   >
-//                     {isSelected && (
-//                       <Ionicons
-//                         name="checkmark"
-//                         size={16}
-//                         color={colors.surface}
-//                       />
-//                     )}
-//                   </View>
-//                 </TouchableOpacity>
-//               );
-//             }}
-//             contentContainerStyle={{ paddingBottom: 100 }}
-//             showsVerticalScrollIndicator={false}
-//           /> */}
-
 //           {/* ── User list ── */}
 //           <View style={{ flex: 1 }}>
-//             {/* Section label */}
 //             <View
 //               style={[
 //                 styles.sectionHeader,
 //                 { borderBottomColor: colors.border },
 //               ]}
 //             >
-//               <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-//                 {isSearching ? `SEARCH RESULTS` : `CONTACTS ON LINKSCHAT`}
+//               <Text
+//                 style={[styles.sectionLabel, { color: colors.textPrimary }]}
+//               >
+//                 {isSearching ? "SEARCH RESULTS" : "CONTACTS ON LINKSCHAT"}
 //               </Text>
 //               {!isSearching && platformContacts.length > 0 && (
 //                 <Text
-//                   style={[styles.sectionCount, { color: colors.textMuted }]}
+//                   style={[styles.sectionCount, { color: colors.textPrimary }]}
 //                 >
 //                   {platformContacts.length}
 //                 </Text>
@@ -308,7 +237,7 @@
 //                   Loading your contacts...
 //                 </Text>
 //               </View>
-//             ) : searching && isSearching ? (
+//             ) : loading && isSearching ? (
 //               <View style={styles.loadingWrap}>
 //                 <ActivityIndicator color="#00d4aa" />
 //               </View>
@@ -324,7 +253,7 @@
 //                     <Text
 //                       style={[styles.emptyTitle, { color: colors.textPrimary }]}
 //                     >
-//                       No results for "{searchQuery}"
+//                       No results for "{query}"
 //                     </Text>
 //                     <Text
 //                       style={[styles.emptySub, { color: colors.textMuted }]}
@@ -360,10 +289,12 @@
 //                 contentContainerStyle={{ paddingBottom: 120 }}
 //                 keyboardShouldPersistTaps="handled"
 //                 renderItem={({ item: user }) => {
-//                   const isSelected = selectedUsers.some(
-//                     (u) => u._id === user._id
+//                   const isSelected = selected.some((s) => s._id === user._id);
+//                   const { displayName, isContact } = resolveContact(
+//                     user.phone,
+//                     user.name
 //                   );
-//                   const initials = user.name
+//                   const initials = displayName
 //                     .split(" ")
 //                     .map((w: string) => w[0])
 //                     .join("")
@@ -374,15 +305,14 @@
 //                     <TouchableOpacity
 //                       style={[
 //                         styles.userRow,
-//                         { borderBottomColor: colors.border },
+//                         { borderBottomColor: colors.textMuted },
 //                         isSelected && {
 //                           backgroundColor: "rgba(0,212,170,0.05)",
 //                         },
 //                       ]}
-//                       onPress={() => toggleUser(user)}
+//                       onPress={() => toggleSelect(user)}
 //                       activeOpacity={0.7}
 //                     >
-//                       {/* Avatar */}
 //                       <View style={styles.avatarWrap}>
 //                         {user.avatar ? (
 //                           <Image
@@ -410,7 +340,6 @@
 //                         )}
 //                       </View>
 
-//                       {/* Info */}
 //                       <View style={styles.userInfo}>
 //                         <Text
 //                           style={[
@@ -418,21 +347,25 @@
 //                             { color: colors.textPrimary },
 //                           ]}
 //                         >
-//                           {user.name}
+//                           {displayName}
 //                         </Text>
 //                         <Text
-//                           style={[styles.userSub, { color: colors.textMuted }]}
+//                           style={[
+//                             styles.userSub,
+//                             { color: colors.textPrimary },
+//                           ]}
 //                         >
-//                           {user.phone || user.bio || user.email}
+//                           {user.phone || user.bio || ""}
 //                         </Text>
 //                       </View>
 
-//                       {/* Checkbox */}
 //                       <View
 //                         style={[
 //                           styles.checkbox,
 //                           {
-//                             borderColor: isSelected ? "#00d4aa" : colors.border,
+//                             borderColor: isSelected
+//                               ? "#00d4aa"
+//                               : colors.textMuted,
 //                             backgroundColor: isSelected
 //                               ? "#00d4aa"
 //                               : "transparent",
@@ -584,14 +517,15 @@
 //     borderWidth: 1,
 //   },
 //   searchInput: { flex: 1, fontSize: 15 },
-//   userItem: {
+//   userRow: {
 //     flexDirection: "row",
 //     alignItems: "center",
 //     paddingHorizontal: Spacing.base,
 //     paddingVertical: 12,
 //     gap: 12,
+//     borderBottomWidth: StyleSheet.hairlineWidth,
 //   },
-//   avatarWrap: {},
+//   avatarWrap: { position: "relative" },
 //   avatar: { width: 50, height: 50, borderRadius: 25 },
 //   avatarFallback: {
 //     width: 50,
@@ -600,19 +534,28 @@
 //     justifyContent: "center",
 //     alignItems: "center",
 //   },
-//   initials: { fontSize: 17, fontWeight: "700" },
+//   avatarInitials: { fontSize: 17, fontWeight: "700", color: "#fff" },
+//   onlineDot: {
+//     position: "absolute",
+//     bottom: 1,
+//     right: 1,
+//     width: 13,
+//     height: 13,
+//     borderRadius: 7,
+//     backgroundColor: "#00d4aa",
+//     borderWidth: 2,
+//   },
 //   userInfo: { flex: 1 },
 //   userName: { fontSize: 15, fontWeight: "700" },
-//   userSub: { fontSize: 13 },
-//   checkCircle: {
-//     width: 26,
-//     height: 26,
-//     borderRadius: 13,
+//   userSub: { fontSize: 13, marginTop: 1 },
+//   checkbox: {
+//     width: 24,
+//     height: 24,
+//     borderRadius: 6,
 //     borderWidth: 2,
 //     justifyContent: "center",
 //     alignItems: "center",
 //   },
-//   checkCircleActive: { backgroundColor: "#00d4aa", borderColor: "#00d4aa" },
 //   nameStep: {
 //     flex: 1,
 //     alignItems: "center",
@@ -669,15 +612,8 @@
 //     paddingVertical: 10,
 //     borderBottomWidth: StyleSheet.hairlineWidth,
 //   },
-//   sectionLabel: {
-//     fontSize: 11,
-//     fontWeight: "700",
-//     letterSpacing: 1,
-//   },
-//   sectionCount: {
-//     fontSize: 11,
-//     fontWeight: "600",
-//   },
+//   sectionLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 1 },
+//   sectionCount: { fontSize: 11, fontWeight: "600" },
 //   loadingWrap: {
 //     flex: 1,
 //     justifyContent: "center",
@@ -685,9 +621,7 @@
 //     gap: 12,
 //     paddingTop: 60,
 //   },
-//   loadingText: {
-//     fontSize: 13,
-//   },
+//   loadingText: { fontSize: 13 },
 //   emptyWrap: {
 //     flex: 1,
 //     justifyContent: "center",
@@ -696,16 +630,8 @@
 //     paddingTop: 60,
 //     paddingHorizontal: 40,
 //   },
-//   emptyTitle: {
-//     fontSize: 17,
-//     fontWeight: "700",
-//     textAlign: "center",
-//   },
-//   emptySub: {
-//     fontSize: 13,
-//     textAlign: "center",
-//     lineHeight: 20,
-//   },
+//   emptyTitle: { fontSize: 17, fontWeight: "700", textAlign: "center" },
+//   emptySub: { fontSize: 13, textAlign: "center", lineHeight: 20 },
 // });
 
 import {
@@ -718,7 +644,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -728,7 +654,7 @@ import { Spacing, BorderRadius } from "../constants";
 import { useTheme } from "../context/ThemeContext";
 import { userApi, chatApi, uploadFileToS3 } from "../services/api";
 import { User } from "../types";
-import { useAppDispatch } from "../hooks/useRedux";
+import { useAppDispatch, useAppSelector } from "../hooks/useRedux";
 import { addOrUpdateChat } from "../store/slices/chatSlice";
 import { useContactNameResolver } from "@/hooks/useContactName";
 
@@ -748,10 +674,20 @@ export default function NewGroupScreen() {
   const [platformContacts, setPlatformContacts] = useState<User[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
 
+  // Only catches people *I've* blocked — the server has no way of
+  // telling this screen who has blocked *me*, so that direction still
+  // needs enforcing in createGroupChat itself (same isBlockedEitherWay
+  // pattern already used for toggleLike/addComment/call:initiate).
+  const blockedIds = useAppSelector((s) => s.blocked.blockedIds);
+  const blockedIdsSet = useMemo(() => new Set(blockedIds), [blockedIds]);
+
   const isSearching = query.trim().length > 0;
   // When searching, show live search results (`users`); otherwise show the
-  // user's existing platform contacts as the default browsing list.
-  const displayUsers = isSearching ? users : platformContacts;
+  // user's existing platform contacts as the default browsing list —
+  // either way, blocked contacts never show up as addable members.
+  const displayUsers = (isSearching ? users : platformContacts).filter(
+    (u) => !blockedIdsSet.has(u._id)
+  );
 
   useEffect(() => {
     const loadPlatformContacts = async () => {
@@ -931,11 +867,11 @@ export default function NewGroupScreen() {
               >
                 {isSearching ? "SEARCH RESULTS" : "CONTACTS ON LINKSCHAT"}
               </Text>
-              {!isSearching && platformContacts.length > 0 && (
+              {!isSearching && displayUsers.length > 0 && (
                 <Text
                   style={[styles.sectionCount, { color: colors.textPrimary }]}
                 >
-                  {platformContacts.length}
+                  {displayUsers.length}
                 </Text>
               )}
             </View>

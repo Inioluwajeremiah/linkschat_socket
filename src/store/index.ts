@@ -30,6 +30,8 @@ import statusReducer from "./slices/statusSlice";
 import reelReducer from "./slices/reelSlice";
 import contactsReducer from "./slices/contactsSlice";
 import blockedUsersReducer from "./slices/blockedUserSlice";
+import ongoingCallsReducer from "./slices/ongoingCallsSlice";
+import myCallReducer from "./slices/myCallSlice";
 
 export const store = configureStore({
   reducer: {
@@ -42,6 +44,8 @@ export const store = configureStore({
     reel: reelReducer,
     contacts: contactsReducer,
     blocked: blockedUsersReducer,
+    ongoingCalls: ongoingCallsReducer,
+    myCall: myCallReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
