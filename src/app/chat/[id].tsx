@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
+  AppState,
 } from "react-native";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -31,11 +32,7 @@ import {
   removeMessage,
   clearUnread,
 } from "../../store/slices/chatSlice";
-import {
-  chatApi,
-  messageActionsApi,
-  searchApi,
-} from "../../services/api";
+import { chatApi, messageActionsApi, searchApi } from "../../services/api";
 import { socketService } from "../../services/socket";
 import {
   enqueueMessage,
@@ -64,6 +61,7 @@ import { StickerRef, encodeBundledRef } from "@/constants/stickers";
 import { useAnimatedKeyboard } from "react-native-keyboard-controller";
 import { useDerivedValue } from "react-native-reanimated";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import { useIsOnline, useLastSeen } from "@/hooks/usePresence";
 import OngoingCallBanner from "@/components/OngoingCallBanner";
 
 // ─── Date separator ───────────────────────────────────────────────────────────
@@ -424,6 +422,7 @@ export default function ChatScreen() {
 
   const keyboard = useAnimatedKeyboard();
   const resolveContact = useContactNameResolver();
+  const isOnlineNow = useIsOnline();
 
   const keyboardOffset2 = useDerivedValue(() => {
     return keyboard.height.value > 0 ? insets.top : 0;
@@ -621,7 +620,11 @@ export default function ChatScreen() {
     const onNewMessage = (msg: Message) => {
       if (msg.chatId !== chatId) return;
       dispatch(addMessage({ chatId, message: msg }));
-      messageActionsApi.markChatRead(chatId).catch(() => {});
+      // Not while backgrounded — the AppState listener below marks it read
+      // once the user is actually looking again.
+      if (AppState.currentState === "active") {
+        messageActionsApi.markChatRead(chatId).catch(() => {});
+      }
       setTimeout(
         () =>
           flatListRef.current?.scrollToOffset({ offset: 0, animated: true }),
@@ -699,6 +702,17 @@ export default function ChatScreen() {
       );
     };
 
+    // Rooms don't survive a reconnect (the socket is dropped while
+    // backgrounded, or on a network blip) — rejoin, or this open chat stops
+    // getting new messages and read receipts until it's reopened.
+    const onReconnect = () => {
+      socketService.emit("chat:join", chatId);
+      if (AppState.currentState === "active") {
+        messageActionsApi.markChatRead(chatId).catch(() => {});
+      }
+    };
+
+    socket.on("connect", onReconnect);
     socket.on("message:new", onNewMessage);
     socket.on("message:edited", onEdited);
     socket.on("message:deleted", onDeleted);
@@ -706,6 +720,7 @@ export default function ChatScreen() {
     socket.on("message:read", onMessagesRead);
 
     return () => {
+      socket.off("connect", onReconnect);
       socket.off("message:new", onNewMessage);
       socket.off("message:edited", onEdited);
       socket.off("message:deleted", onDeleted);
@@ -721,12 +736,24 @@ export default function ChatScreen() {
     });
   }, [showRecorder]);
 
+  // Held back while backgrounded (kept pending, flushed on return).
   const flushReadReceipts = () => {
     if (pendingReadIdsRef.current.size === 0) return;
+    if (AppState.currentState !== "active") return;
     const ids = Array.from(pendingReadIdsRef.current);
     pendingReadIdsRef.current.clear();
     socketService.emit("message:read", { chatId, messageIds: ids });
   };
+
+  // Coming back to an open chat: send the receipts held back while away.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      flushReadReceipts();
+      messageActionsApi.markChatRead(chatId).catch(() => {});
+    });
+    return () => sub.remove();
+  }, [chatId]);
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: any[] }) => {
@@ -1029,7 +1056,12 @@ export default function ChatScreen() {
   const displayAvatar = isGroup
     ? chatInfo?.avatar
     : (otherParticipant?.user as User)?.avatar;
-  const isOtherOnline = !isGroup && (otherParticipant?.user as User)?.isOnline;
+  const isOtherOnline =
+    !isGroup &&
+    isOnlineNow(
+      otherParticipant?.user?._id,
+      (otherParticipant?.user as User)?.isOnline
+    );
 
   const initials = (displayName || "?")
     .split(" ")
@@ -1040,10 +1072,11 @@ export default function ChatScreen() {
   // privacy and blocked user
   const otherUser = otherParticipant?.user as any;
   const hideLastSeen = !!otherUser?.privacySettings?.hideLastSeen;
+  const lastSeen = useLastSeen(otherUser?._id, otherUser?.lastSeen);
   const lastSeenLabel =
-    !otherUser?.lastSeen || hideLastSeen
+    !lastSeen || hideLastSeen
       ? "Offline"
-      : `Last seen ${formatDistanceToNow(new Date(otherUser.lastSeen))}`;
+      : `Last seen ${formatDistanceToNow(new Date(lastSeen))}`;
   // useIsBlocked already returns false for a falsy id, so it's safe to
   // call unconditionally even when isGroup (avoids breaking rules of hooks
   // by calling it inside a ternary).
@@ -1392,7 +1425,6 @@ export default function ChatScreen() {
             </LinearGradient>
           </TouchableOpacity>
         )}
-
 
         {replyTo && !editingMessage && (
           <ReplyBar

@@ -254,8 +254,8 @@
 //   );
 // }
 
-import { useEffect, useState } from "react";
-import { Stack } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { Stack, useRouter } from "expo-router";
 import { View, Image, StyleSheet } from "react-native";
 
 import { Provider, useDispatch } from "react-redux";
@@ -264,6 +264,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AppDispatch, store } from "../store";
 import { restoreSession, startSessionPersistence } from "../services/session";
+import { configureAudio } from "../services/audioMode";
 import { useSocket } from "../hooks/useSocket";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { ThemeProvider, useTheme } from "../context/ThemeContext";
@@ -276,6 +277,7 @@ import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { useInAppUpdate } from "@/hooks/useInAppUpdate";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import NetworkBanner from "@/components/NetworkBanner";
+import AppLockGate from "@/components/AppLockGate";
 
 function SocketInitializer() {
   useSocket();
@@ -296,6 +298,24 @@ function InAppUpdateInitializer() {
 }
 function OfflineSyncInitializer() {
   useOfflineSync();
+  return null;
+}
+// The app now opens from a saved session and verifies it in the background.
+// If the server then definitively rejects it (revoked/expired, suspended
+// account), the session is cleared — this is what actually moves the user to
+// the login screen instead of leaving them stranded in the tabs.
+function AuthGuard() {
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const router = useRouter();
+  const wasAuthenticated = useRef(isAuthenticated);
+
+  useEffect(() => {
+    if (wasAuthenticated.current && !isAuthenticated) {
+      router.replace("/(auth)/login");
+    }
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated, router]);
+
   return null;
 }
 function ContactsLoader() {
@@ -326,6 +346,7 @@ function AppNavigator() {
         <BlockedUsersInitializer />
         <InAppUpdateInitializer />
         <OfflineSyncInitializer />
+        <AuthGuard />
         <StatusBar style={colors.statusBar} />
         <Stack
           screenOptions={{
@@ -445,6 +466,7 @@ function AppNavigator() {
           />
         </Stack>
         <NetworkBanner />
+        <AppLockGate />
       </KeyboardProvider>
     </>
   );
@@ -480,6 +502,8 @@ function AppWithStore() {
 
   useEffect(() => {
     dispatch(loadOnboardingState());
+    // Once, at launch — never during a call (see services/audioMode.ts).
+    configureAudio();
   }, []);
 
   useEffect(() => {

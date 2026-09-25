@@ -700,9 +700,10 @@ import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { setChats, addOrUpdateChat } from "../../store/slices/chatSlice";
 import { store } from "../../store";
 import { loadDeviceContacts } from "@/store/slices/contactsSlice";
-import { chatApi, searchApi } from "../../services/api";
+import { chatApi, searchApi, isNotified } from "../../services/api";
 import { Chat, MessageSearchResult, User } from "../../types";
 import { useContactSync, MatchedContact } from "@/hooks/useContactSync";
+import { useContactNameResolver } from "@/hooks/useContactName";
 import ContactSuggestionRow from "@/components/tabindex/ContactSuggestionRow";
 import MenuItems from "@/components/tabindex/MenuItems";
 import ChatItem from "@/components/tabindex/ChatItem";
@@ -743,7 +744,11 @@ export default function ChatsScreen() {
   // Contacts who are on LinksChat, matched from the device's phone
   // contacts and synced against the server (includes phoneName — the
   // name as saved on the device, not the LinksChat profile name).
-  const { matchedContacts, syncing, syncContacts } = useContactSync();
+  // Background sync on every open — silent, so it doesn't pop toasts.
+  const { matchedContacts, syncing, syncContacts } = useContactSync({
+    silent: true,
+  });
+  const resolveContact = useContactNameResolver();
 
   const [creatingContactId, setCreatingContactId] = useState<string | null>(
     null
@@ -885,13 +890,11 @@ export default function ChatsScreen() {
     };
   }, [loadChats, fetchBlockedUsers, syncContacts, dispatch, skipSync]);
 
+  // skipSync only skips the automatic sync on arrival (the register flow's
+  // contacts screen just ran one) — an explicit pull-to-refresh always syncs.
   const onRefresh = async () => {
     setRefreshing(true);
-    const tasks = [loadChats()];
-    if (skipSync !== "1") {
-      tasks.push(syncContacts());
-    }
-    await Promise.all(tasks);
+    await Promise.all([loadChats(), syncContacts()]);
     if (isMountedRef.current) setRefreshing(false);
   };
 
@@ -911,8 +914,9 @@ export default function ChatsScreen() {
         } else {
           showError("Couldn't start chat", "Try again in a moment.");
         }
-      } catch {
-        showError("Couldn't start chat", "Try again in a moment.");
+      } catch (err) {
+        if (!isNotified(err))
+          showError("Couldn't start chat", "Try again in a moment.");
       } finally {
         if (isMountedRef.current) setCreatingContactId(null);
       }
@@ -966,13 +970,17 @@ export default function ChatsScreen() {
     return ids;
   }, [chats, user?._id]);
 
+  // Matches what ChatItem shows (the device-saved name, or the phone number
+  // for unsaved contacts) as well as the LinksChat profile name.
   const filteredChats = chats.filter((c) => {
     if (!isSearching) return true;
-    const name =
-      c.type === "group"
-        ? c.name
-        : c.participants.find((p) => p.user._id !== user?._id)?.user?.name;
-    return name?.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    if (c.type === "group") return !!c.name?.toLowerCase().includes(q);
+    const other = c.participants.find((p) => p.user._id !== user?._id)?.user;
+    const { displayName } = resolveContact(other?.phone, other?.name);
+    return [displayName, other?.name, other?.phone].some((n) =>
+      n?.toLowerCase().includes(q)
+    );
   });
 
   // Contacts on LinksChat you haven't started a conversation with yet.

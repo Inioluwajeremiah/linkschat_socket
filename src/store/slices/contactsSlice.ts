@@ -99,8 +99,20 @@
 // export const { clearContacts } = contactsSlice.actions;
 // export default contactsSlice.reducer;
 
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import {
+  createSlice,
+  createAsyncThunk,
+  PayloadAction,
+} from "@reduxjs/toolkit";
 import * as Contacts from "expo-contacts";
+import { User } from "../../types";
+import { logout } from "./authSlice";
+
+// A LinksChat user matched from the device's phone contacts. phoneName is
+// the name as saved on the device, not the LinksChat profile name.
+export interface MatchedContact extends User {
+  phoneName: string;
+}
 
 interface ContactsState {
   // Maps last-9-digit phone suffix → saved contact name
@@ -109,6 +121,11 @@ interface ContactsState {
   phoneToNumber: Record<string, string>;
   loaded: boolean;
   loading: boolean;
+  // Result of the last server-side contact sync — shared so a sync run on
+  // one screen (e.g. the post-register "Find Your Friends" screen) is still
+  // visible on the chats tab without re-syncing.
+  matchedContacts: MatchedContact[];
+  totalPhoneContacts: number;
 }
 
 const initialState: ContactsState = {
@@ -116,14 +133,17 @@ const initialState: ContactsState = {
   phoneToNumber: {},
   loaded: false,
   loading: false,
+  matchedContacts: [],
+  totalPhoneContacts: 0,
 };
 
 export const loadDeviceContacts = createAsyncThunk<
   {
     phoneToName: Record<string, string>;
     phoneToNumber: Record<string, string>;
+    granted: boolean;
   },
-  void,
+  { force?: boolean } | void,
   { rejectValue: string; state: { contacts: ContactsState } }
 >(
   "contacts/load",
@@ -132,7 +152,7 @@ export const loadDeviceContacts = createAsyncThunk<
       const { status } = await Contacts.requestPermissionsAsync();
 
       if (status !== "granted") {
-        return { phoneToName: {}, phoneToNumber: {} };
+        return { phoneToName: {}, phoneToNumber: {}, granted: false };
       }
 
       const { data } = await Contacts.getContactsAsync({
@@ -164,7 +184,7 @@ export const loadDeviceContacts = createAsyncThunk<
         }
       }
 
-      return { phoneToName, phoneToNumber };
+      return { phoneToName, phoneToNumber, granted: true };
     } catch (e) {
       return rejectWithValue("Failed to load contacts");
     }
@@ -176,7 +196,10 @@ export const loadDeviceContacts = createAsyncThunk<
     // permission every time. NOTE: `state` here is typed loosely as
     // `{ contacts: ContactsState }` rather than your app's full RootState
     // — swap that in if you have one, for stronger typing elsewhere.
-    condition: (_, { getState }) => {
+    // Pass { force: true } to reload anyway, e.g. right after the user
+    // grants contacts permission.
+    condition: (arg, { getState }) => {
+      if (arg && arg.force) return true;
       const { contacts } = getState();
       return !contacts.loaded && !contacts.loading;
     },
@@ -191,6 +214,18 @@ const contactsSlice = createSlice({
       state.phoneToName = {};
       state.phoneToNumber = {};
       state.loaded = false;
+      state.matchedContacts = [];
+      state.totalPhoneContacts = 0;
+    },
+    setMatchedContacts: (
+      state,
+      action: PayloadAction<{
+        matchedContacts: MatchedContact[];
+        totalPhoneContacts: number;
+      }>
+    ) => {
+      state.matchedContacts = action.payload.matchedContacts;
+      state.totalPhoneContacts = action.payload.totalPhoneContacts;
     },
   },
   extraReducers: (builder) => {
@@ -201,15 +236,22 @@ const contactsSlice = createSlice({
       .addCase(loadDeviceContacts.fulfilled, (state, action) => {
         state.loading = false;
         state.loaded = true;
-        state.phoneToName = action.payload.phoneToName;
-        state.phoneToNumber = action.payload.phoneToNumber;
+        // A load that ran without permission (e.g. it raced the permission
+        // prompt on first sign-up) must not wipe a map a granted load
+        // already filled.
+        if (action.payload.granted) {
+          state.phoneToName = action.payload.phoneToName;
+          state.phoneToNumber = action.payload.phoneToNumber;
+        }
       })
       .addCase(loadDeviceContacts.rejected, (state) => {
         state.loading = false;
         state.loaded = true; // done even if permission denied
-      });
+      })
+      // Don't carry one account's contact matches over to the next.
+      .addCase(logout, () => initialState);
   },
 });
 
-export const { clearContacts } = contactsSlice.actions;
+export const { clearContacts, setMatchedContacts } = contactsSlice.actions;
 export default contactsSlice.reducer;

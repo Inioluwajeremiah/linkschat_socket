@@ -36,7 +36,13 @@ export function useOutgoingRingback(
     if (!source) return; // no asset configured yet — silent, not a crash
 
     try {
-      const player = createAudioPlayer(source);
+      // keepAudioSessionActive: this player is stopped the instant the call
+      // is answered, while the call itself is already using the shared iOS
+      // audio session. Without it expo-audio deactivates that session on
+      // pause — cutting the call's audio right at pickup.
+      const player = createAudioPlayer(source, {
+        keepAudioSessionActive: true,
+      });
       player.loop = true;
       player.volume = 1;
       player.play();

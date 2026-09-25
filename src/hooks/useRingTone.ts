@@ -58,7 +58,14 @@ export function useRingtone(isRinging: boolean) {
       }
 
       try {
-        const player = createAudioPlayer(ringtone.source);
+        // keepAudioSessionActive: on iOS, pausing/finishing a player makes
+        // expo-audio DEACTIVATE the shared AVAudioSession ~100ms later. This
+        // ringtone stops at the moment the call is accepted — exactly when the
+        // call screen is activating that same session for the call — so the
+        // deactivation could land on top of it and silence the call.
+        const player = createAudioPlayer(ringtone.source, {
+          keepAudioSessionActive: true,
+        });
         player.loop = true;
         player.volume = 1;
         player.play();

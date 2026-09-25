@@ -132,6 +132,15 @@ const blockedSlice = createSlice({
     removeBlocked: (state, action: PayloadAction<string>) => {
       state.blockedIds = state.blockedIds.filter((id) => id !== action.payload);
     },
+    // Loads the copy saved on this device so blocks still apply offline.
+    // Only fills an empty list; a fetched list is fresher.
+    hydrateBlocked: (state, action: PayloadAction<string[]>) => {
+      if (state.blockedIds.length === 0) state.blockedIds = action.payload;
+    },
+    // Sign-out: don't carry one account's blocked list to the next.
+    clearBlocked: (state) => {
+      state.blockedIds = [];
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -148,5 +157,6 @@ const blockedSlice = createSlice({
   },
 });
 
-export const { addBlocked, removeBlocked } = blockedSlice.actions;
+export const { addBlocked, removeBlocked, hydrateBlocked, clearBlocked } =
+  blockedSlice.actions;
 export default blockedSlice.reducer;

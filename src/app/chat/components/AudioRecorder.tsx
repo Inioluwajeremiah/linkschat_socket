@@ -17,6 +17,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
+import { BASE_AUDIO_MODE } from "../../../services/audioMode";
 
 // ---------------------------------------------------------------------------
 // WHY THIS CHANGED
@@ -187,8 +188,8 @@ export default function AudioRecorder({
   // and for every "resume" after a pause.
   const startNewSegment = async () => {
     await setAudioModeAsync({
+      ...BASE_AUDIO_MODE,
       allowsRecording: true,
-      playsInSilentMode: true,
     });
     await recorder.prepareToRecordAsync();
     recorder.record();
@@ -263,8 +264,8 @@ export default function AudioRecorder({
 
     try {
       await setAudioModeAsync({
+        ...BASE_AUDIO_MODE,
         allowsRecording: false,
-        playsInSilentMode: true,
       });
       setPreviewIndex(0);
       player.replace(segments[0].uri);

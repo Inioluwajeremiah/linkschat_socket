@@ -748,6 +748,7 @@ import { chatApi, userApi } from "@/services/api";
 import { ScrollView } from "react-native";
 import { BorderRadius, Spacing } from "@/constants";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import { useIsOnline } from "@/hooks/usePresence";
 
 // Cap on how many "not yet chatted with" contacts are shown, so the row
 // stays scannable. Contacts you've already chatted with are never cut by
@@ -766,6 +767,7 @@ export default function ContactsRow({
   const router = useRouter();
   const dispatch = useAppDispatch();
   const resolveContact = useContactNameResolver();
+  const isOnlineNow = useIsOnline();
   const [contacts, setContacts] = useState<User[]>([]);
   const [menuContact, setMenuContact] = useState<User | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -902,7 +904,7 @@ export default function ContactsRow({
                         <Text style={styles.contactInitials}>{initials}</Text>
                       </LinearGradient>
                     )}
-                    {contact.isOnline && (
+                    {isOnlineNow(contact._id, contact.isOnline) && (
                       <View
                         style={[
                           styles.contactOnlineDot,
@@ -995,7 +997,7 @@ export default function ContactsRow({
                     </Text>
                   </LinearGradient>
                 )}
-                {menuContact.isOnline && (
+                {isOnlineNow(menuContact._id, menuContact.isOnline) && (
                   <View
                     style={[
                       styles.menuOnlineDot,
@@ -1027,7 +1029,7 @@ export default function ContactsRow({
                   style={[
                     styles.menuOnlineChip,
                     {
-                      backgroundColor: menuContact.isOnline
+                      backgroundColor: isOnlineNow(menuContact._id, menuContact.isOnline)
                         ? "rgba(0,212,170,0.1)"
                         : "rgba(85,85,119,0.1)",
                     },
@@ -1037,7 +1039,7 @@ export default function ContactsRow({
                     style={[
                       styles.menuOnlineChipDot,
                       {
-                        backgroundColor: menuContact.isOnline
+                        backgroundColor: isOnlineNow(menuContact._id, menuContact.isOnline)
                           ? "#00d4aa"
                           : "#555577",
                       },
@@ -1047,11 +1049,11 @@ export default function ContactsRow({
                     style={[
                       styles.menuOnlineChipText,
                       {
-                        color: menuContact.isOnline ? "#00d4aa" : "#555577",
+                        color: isOnlineNow(menuContact._id, menuContact.isOnline) ? "#00d4aa" : "#555577",
                       },
                     ]}
                   >
-                    {menuContact.isOnline ? "Active now" : "Offline"}
+                    {isOnlineNow(menuContact._id, menuContact.isOnline) ? "Active now" : "Offline"}
                   </Text>
                 </View>
               </View>

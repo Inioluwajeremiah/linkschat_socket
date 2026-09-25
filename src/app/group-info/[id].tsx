@@ -764,8 +764,10 @@ import { useAppSelector } from "@/hooks/useRedux";
 import { Chat, ChatParticipant, User } from "@/types";
 import { chatApi, groupApi, userApi, uploadFileToS3 } from "@/services/api";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import { useIsOnline } from "@/hooks/usePresence";
 
 export default function GroupInfoScreen() {
+  const isOnlineNow = useIsOnline();
   const { id: chatId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useTheme();
@@ -1240,7 +1242,7 @@ export default function GroupInfoScreen() {
                         <Text style={styles.memberInitials}>{init}</Text>
                       </LinearGradient>
                     )}
-                    {pUser.isOnline && (
+                    {isOnlineNow(pUser._id, pUser.isOnline) && (
                       <View
                         style={[
                           styles.onlineDot,

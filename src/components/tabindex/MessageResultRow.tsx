@@ -7,6 +7,8 @@ import { Text, TouchableOpacity, View } from "react-native";
 import HighlightedText from "./HighlightedText";
 import { StyleSheet } from "react-native";
 import { Spacing } from "@/constants";
+import { useContactNameResolver } from "@/hooks/useContactName";
+import { useAppSelector } from "@/hooks/useRedux";
 
 export default function MessageResultRow({
   item,
@@ -18,7 +20,28 @@ export default function MessageResultRow({
   colors: any;
 }) {
   const router = useRouter();
-  const name = item.displayName || "Unknown";
+  const resolveContact = useContactNameResolver();
+  const myId = useAppSelector((s) => s.auth.user?._id);
+  const chat = useAppSelector((s) =>
+    s.chat.chats.find((c) => c._id === item.chatId)
+  );
+
+  // Show names as saved on this device, like the chat list does. Phones
+  // come with the result; for older servers, fall back to the chat's
+  // participants already loaded in the list.
+  const otherPhone =
+    item.displayPhone ??
+    chat?.participants.find((p) => p.user?._id !== myId)?.user?.phone;
+  const name =
+    item.chatType === "group"
+      ? item.displayName || "Unknown"
+      : resolveContact(otherPhone, item.displayName).displayName;
+
+  const senderPhone =
+    item.senderPhone ??
+    chat?.participants.find((p) => p.user?.name === item.senderName)?.user
+      ?.phone;
+  const senderName = resolveContact(senderPhone, item.senderName).displayName;
   const initials = name
     .split(" ")
     .map((w) => w[0])
@@ -30,7 +53,7 @@ export default function MessageResultRow({
   // match is the current user's own message — matching WhatsApp's convention.
   const prefix =
     item.chatType === "group"
-      ? `${item.isMine ? "You" : item.senderName}: `
+      ? `${item.isMine ? "You" : senderName}: `
       : item.isMine
       ? "You: "
       : "";

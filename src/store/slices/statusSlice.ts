@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { statusApi } from "../../services/api";
 import { StatusGroup } from "../../types";
 
@@ -28,6 +28,19 @@ const statusSlice = createSlice({
       state.myStatus = null;
       state.statuses = [];
     },
+    // Loads the copy saved on this device (offline reading). Only fills an
+    // EMPTY feed — anything already fetched from the network is fresher.
+    hydrateStatuses: (
+      state,
+      action: PayloadAction<{
+        myStatus: StatusGroup | null;
+        statuses: StatusGroup[];
+      }>
+    ) => {
+      if (state.myStatus || state.statuses.length > 0) return;
+      state.myStatus = action.payload.myStatus;
+      state.statuses = action.payload.statuses;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -45,5 +58,5 @@ const statusSlice = createSlice({
   },
 });
 
-export const { clearStatuses } = statusSlice.actions;
+export const { clearStatuses, hydrateStatuses } = statusSlice.actions;
 export default statusSlice.reducer;

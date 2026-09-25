@@ -1575,12 +1575,13 @@ import { Image } from "expo-image";
 import { Spacing, BorderRadius } from "../constants";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
-import { userApi, chatApi } from "../services/api";
+import { userApi, chatApi, isNotified } from "../services/api";
 import { User } from "../types";
 import { useAppDispatch, useAppSelector } from "../hooks/useRedux";
 import { addOrUpdateChat } from "../store/slices/chatSlice";
 import { loadDeviceContacts } from "@/store/slices/contactsSlice";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import { useIsOnline } from "@/hooks/usePresence";
 
 type ThemeColors = ReturnType<typeof useTheme>["colors"];
 
@@ -1601,6 +1602,7 @@ function getInitials(name: string): string {
 }
 
 export default function NewChatScreen() {
+  const isOnlineNow = useIsOnline();
   const { colors } = useTheme();
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -1707,8 +1709,9 @@ export default function NewChatScreen() {
         } else {
           showError("Couldn't start chat", "Try again in a moment.");
         }
-      } catch {
-        showError("Couldn't start chat", "Try again in a moment.");
+      } catch (err) {
+        if (!isNotified(err))
+          showError("Couldn't start chat", "Try again in a moment.");
       } finally {
         setCreatingUserId(null);
       }
@@ -1942,7 +1945,7 @@ export default function NewChatScreen() {
                     </Text>
                   </LinearGradient>
                 )}
-                {menuUser.isOnline && (
+                {isOnlineNow(menuUser._id, menuUser.isOnline) && (
                   <View
                     style={[
                       styles.menuOnlineDot,
@@ -1974,7 +1977,7 @@ export default function NewChatScreen() {
                   style={[
                     styles.menuOnlineChip,
                     {
-                      backgroundColor: menuUser.isOnline
+                      backgroundColor: isOnlineNow(menuUser._id, menuUser.isOnline)
                         ? "rgba(0,212,170,0.1)"
                         : "rgba(85,85,119,0.1)",
                     },
@@ -1984,7 +1987,7 @@ export default function NewChatScreen() {
                     style={[
                       styles.menuOnlineChipDot,
                       {
-                        backgroundColor: menuUser.isOnline
+                        backgroundColor: isOnlineNow(menuUser._id, menuUser.isOnline)
                           ? "#00d4aa"
                           : "#555577",
                       },
@@ -1993,10 +1996,10 @@ export default function NewChatScreen() {
                   <Text
                     style={[
                       styles.menuOnlineChipText,
-                      { color: menuUser.isOnline ? "#00d4aa" : "#555577" },
+                      { color: isOnlineNow(menuUser._id, menuUser.isOnline) ? "#00d4aa" : "#555577" },
                     ]}
                   >
-                    {menuUser.isOnline ? "Active now" : "Offline"}
+                    {isOnlineNow(menuUser._id, menuUser.isOnline) ? "Active now" : "Offline"}
                   </Text>
                 </View>
               </View>
@@ -2120,6 +2123,7 @@ const UserRow = memo(function UserRow({
   colors,
 }: UserRowProps) {
   const resolveContact = useContactNameResolver();
+  const isOnlineNow = useIsOnline();
 
   const { displayName, isContact } = resolveContact(user?.phone, user?.name);
 
@@ -2151,7 +2155,7 @@ const UserRow = memo(function UserRow({
             </Text>
           </LinearGradient>
         )}
-        {user.isOnline && (
+        {isOnlineNow(user._id, user.isOnline) && (
           <View
             style={[
               styles.onlineDot,

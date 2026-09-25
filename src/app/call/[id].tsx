@@ -929,6 +929,10 @@ import { Chat } from "../../types";
 import { useContactNameResolver } from "@/hooks/useContactName";
 import { useOutgoingRingback } from "../../hooks/useOutgoingRingback"; // adjust path to match where you place useOutgoingRingback.ts relative to CallScreen
 import { useIsBlocked } from "@/hooks/useIsBlockedUser";
+import {
+  ensureCallPermissions,
+  warnPermissionsOff,
+} from "../../utils/callPermissions";
 
 type CallStatus =
   | "calling"
@@ -1149,7 +1153,25 @@ export default function CallScreen() {
       handleEnd("completed");
     };
 
+    // The server refused to ring anyone (blocked, or the callee only
+    // accepts calls from contacts). Without this the caller just saw
+    // "Calling…" until the 60s timeout.
+    const onCallError = ({
+      callId,
+      error,
+    }: {
+      callId: string;
+      error?: string;
+      code?: string;
+    }) => {
+      if (callId !== callIdRef.current) return;
+      setStatus("rejected");
+      toast.error("Call couldn't be placed", error);
+      setTimeout(() => handleEnd("rejected"), 1500);
+    };
+
     socket.on("call:accepted", onAccepted);
+    socket.on("call:error", onCallError);
     socket.on("call:rejected", onRejected);
     socket.on("call:ended", onEnded);
 
@@ -1168,6 +1190,7 @@ export default function CallScreen() {
 
     return () => {
       socket.off("call:accepted", onAccepted);
+      socket.off("call:error", onCallError);
       socket.off("call:rejected", onRejected);
       socket.off("call:ended", onEnded);
       clearTimeout(timeout);
@@ -1216,6 +1239,11 @@ export default function CallScreen() {
     }
 
     try {
+      // Ask for the mic/camera first. The SDK never prompts itself: with the
+      // mic denied it joins fine and just publishes no audio — a "silent"
+      // call with no explanation. Non-blocking: they can still listen.
+      warnPermissionsOff(await ensureCallPermissions(isVideo));
+
       const streamUser: StreamUser = {
         id: user._id,
         name: user.name,
@@ -1244,6 +1272,20 @@ export default function CallScreen() {
 
       setStreamClient(client);
       setStreamCall(call);
+
+      // Diagnostics for "connected but silent": a few seconds after joining,
+      // log whether THIS device is actually publishing microphone audio.
+      // Look for "[call diag]" in logcat / Xcode. micStatus should be
+      // "enabled" and published should include an audio track.
+      setTimeout(() => {
+        try {
+          console.log("[call diag]", {
+            micStatus: call.microphone.state.status,
+            published: call.state.localParticipant?.publishedTracks,
+            participants: call.state.participants.length,
+          });
+        } catch {}
+      }, 4000);
 
       // Purely local fact — this device has successfully joined this
       // call. Drives OngoingCallBanner/CallsScreen's "already joined"

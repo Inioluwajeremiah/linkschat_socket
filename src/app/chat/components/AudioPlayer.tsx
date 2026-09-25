@@ -10,6 +10,7 @@ import { StyleSheet } from "react-native";
 import { TouchableOpacity, View } from "react-native";
 import { Text } from "react-native";
 import { audioPlaybackManager } from "../../../utils/audioPlaybackManager";
+import { BASE_AUDIO_MODE } from "../../../services/audioMode";
 // export default function AudioPlayer({
 //   uri,
 //   duration,
@@ -179,8 +180,8 @@ export default function AudioPlayer({
   const togglePlay = async () => {
     try {
       await setAudioModeAsync({
+        ...BASE_AUDIO_MODE,
         allowsRecording: false,
-        playsInSilentMode: true,
       });
       if (playing) {
         player.pause();

@@ -129,6 +129,7 @@
 
 // export const socketService = new SocketService();
 
+import { AppState } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { SOCKET_URL } from "../constants";
 
@@ -225,7 +226,12 @@ class SocketService {
     this.socket?.disconnect();
   }
 
+  // No-op while backgrounded: a session re-check or token refresh finishing
+  // in the background used to reconnect here, making the user "online"
+  // again so the server stopped sending message pushes. The AppState
+  // listener in useSocket resumes once the app is back in the foreground.
   resume(): void {
+    if (AppState.currentState === "background") return;
     if (this.socket && !this.socket.connected) this.socket.connect();
   }
 

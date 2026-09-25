@@ -171,6 +171,7 @@
 
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { ActivityStatus, Chat, ChatState, Message } from "../../types";
+import { withLiveParticipants } from "../../utils/participants";
 
 const initialState: ChatState = {
   chats: [],
@@ -187,14 +188,15 @@ const chatSlice = createSlice({
   initialState,
   reducers: {
     setChats: (state, action: PayloadAction<Chat[]>) => {
-      state.chats = action.payload;
+      state.chats = action.payload.map(withLiveParticipants);
     },
     addOrUpdateChat: (state, action: PayloadAction<Chat>) => {
-      const idx = state.chats.findIndex((c) => c._id === action.payload._id);
+      const chat = withLiveParticipants(action.payload);
+      const idx = state.chats.findIndex((c) => c._id === chat._id);
       if (idx !== -1) {
-        state.chats[idx] = action.payload;
+        state.chats[idx] = chat;
       } else {
-        state.chats.unshift(action.payload);
+        state.chats.unshift(chat);
       }
     },
     setActiveChat: (state, action: PayloadAction<Chat | null>) => {

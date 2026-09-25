@@ -1,5 +1,6 @@
 import { Spacing } from "@/constants";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import { useIsOnline, useLastSeen } from "@/hooks/usePresence";
 import { User } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -33,6 +34,7 @@ export default function ContactSuggestionRow({
   onPress: (contact: User) => void;
 }) {
   const resolveContact = useContactNameResolver();
+  const isOnlineNow = useIsOnline();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -45,7 +47,8 @@ export default function ContactSuggestionRow({
 
   const hideOnlineStatus =
     (contact as any)?.privacySettings?.hideOnlineStatus ?? false;
-  const isOnline = !hideOnlineStatus && contact.isOnline;
+  const isOnline =
+    !hideOnlineStatus && isOnlineNow(contact._id, contact.isOnline);
 
   const { displayName, isContact } = resolveContact(
     contact.phone,

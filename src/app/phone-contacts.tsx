@@ -11,7 +11,7 @@ import {
   Linking,
   Share,
 } from "react-native";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Contacts from "expo-contacts";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,13 +19,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
-import { contactsSyncApi, chatApi } from "../services/api";
-import { useAppDispatch, useAppSelector } from "../hooks/useRedux";
+import { chatApi, isNotified } from "../services/api";
+import { useAppDispatch } from "../hooks/useRedux";
+import { useContactSync, MatchedContact } from "../hooks/useContactSync";
 import { addOrUpdateChat } from "../store/slices/chatSlice";
-import { User } from "../types";
 import { Spacing, BorderRadius, Colors } from "../constants";
-import { getLocales } from "expo-localization";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { useIsOnline } from "@/hooks/usePresence";
 
 interface PhoneContact {
   id: string;
@@ -34,9 +33,6 @@ interface PhoneContact {
   thumbnail?: string;
 }
 
-interface MatchedContact extends User {
-  phoneName: string;
-}
 
 function ContactCard({
   item,
@@ -53,6 +49,7 @@ function ContactCard({
 }) {
   const router = useRouter();
   const { colors } = useTheme();
+  const isOnlineNow = useIsOnline();
   const slideAnim = useRef(new Animated.Value(50)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -110,7 +107,7 @@ function ContactCard({
             </Text>
           </LinearGradient>
         )}
-        {item.isOnline && (
+        {isOnlineNow(item._id, item.isOnline) && (
           <View style={[styles.onlineDot, { borderColor: colors.surface }]} />
         )}
       </TouchableOpacity>
@@ -140,7 +137,7 @@ function ContactCard({
               On LinksChat
             </Text>
           </View>
-          {item.isOnline ? (
+          {isOnlineNow(item._id, item.isOnline) ? (
             <Text style={[styles.status, { color: colors.primary }]}>
               ● Online
             </Text>
@@ -295,6 +292,7 @@ function EmptyState({
 }
 
 export default function PhoneContactsScreen() {
+  const isOnlineNow = useIsOnline();
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const toast = useToast();
@@ -302,21 +300,23 @@ export default function PhoneContactsScreen() {
   const { from } = useLocalSearchParams<{
     from: string;
   }>();
-  const owner = useAppSelector((s) => s.auth.user);
   const isRegisterScreen = from === "register";
 
   const [permissionStatus, setPermissionStatus] =
     useState<Contacts.PermissionStatus | null>(null);
   const [canAskAgain, setCanAskAgain] = useState(true);
-  const [matchedContacts, setMatchedContacts] = useState<MatchedContact[]>([]);
+  const {
+    matchedContacts,
+    totalPhoneContacts,
+    syncing,
+    syncContacts: loadAndSync,
+  } = useContactSync();
   const [filteredContacts, setFilteredContacts] = useState<MatchedContact[]>(
     []
   );
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [totalPhoneContacts, setTotalPhoneContacts] = useState(0);
   const [creatingChat, setCreatingChat] = useState<string | null>(null);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -409,112 +409,6 @@ export default function PhoneContactsScreen() {
     } catch {}
   };
 
-  const loadAndSync = useCallback(async () => {
-    setSyncing(true);
-    const syncId = toast.loading("Syncing contacts...");
-    try {
-      const locales = getLocales();
-
-      const deviceCountry =
-        locales.length > 0 && locales[0].regionCode
-          ? locales[0].regionCode
-          : "";
-      const { data: phoneContacts } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
-      });
-      const ownerCountry = owner?.phone
-        ? parsePhoneNumberFromString(owner.phone)?.country
-        : deviceCountry;
-
-      setTotalPhoneContacts(phoneContacts.length);
-
-      const phoneToName: Record<string, string> = {};
-      const allNumbers: string[] = [];
-
-      for (const contact of phoneContacts) {
-        if (!contact.name || !contact.phoneNumbers?.length) continue;
-        for (const pn of contact.phoneNumbers) {
-          if (pn.number) {
-            const num = pn.number.replace(/[\s\-().]/g, "");
-            allNumbers.push(num);
-            phoneToName[num] = contact.name;
-          }
-        }
-      }
-
-      if (allNumbers.length === 0) {
-        toast.dismiss(syncId!);
-        toast.info(
-          "No phone numbers found",
-          "Your contacts have no phone numbers stored"
-        );
-        setSyncing(false);
-        return;
-      }
-
-      const chunkSize = 500;
-      const allMatched: MatchedContact[] = [];
-
-      for (let i = 0; i < allNumbers.length; i += chunkSize) {
-        const chunk = allNumbers.slice(i, i + chunkSize);
-        const res = await contactsSyncApi.sync(
-          chunk,
-          ownerCountry || deviceCountry
-        );
-        if (res.success) {
-          const mapped: MatchedContact[] = res.data.users.map((u) => {
-            const matchedNum = allNumbers.find((n) => {
-              const userPhone = (u.phone || "").replace(/[\s\-().]/g, "");
-              return (
-                userPhone.endsWith(n.slice(-9)) ||
-                n.endsWith(userPhone.slice(-9))
-              );
-            });
-            const phoneName = matchedNum
-              ? phoneToName[matchedNum] || u.name
-              : u.name;
-            return { ...u, phoneName };
-          });
-          allMatched.push(...mapped);
-        }
-      }
-
-      const seen = new Set<string>();
-      const unique = allMatched.filter((c) => {
-        if (seen.has(c._id)) return false;
-        seen.add(c._id);
-        return true;
-      });
-
-      unique.sort((a, b) => {
-        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
-
-      setMatchedContacts(unique);
-      toast.dismiss(syncId!);
-
-      if (unique.length > 0) {
-        toast.success(
-          `${unique.length} friend${
-            unique.length !== 1 ? "s" : ""
-          } on LinksChat`,
-          `Out of ${phoneContacts.length} contacts`
-        );
-      } else {
-        toast.info(
-          "No matches found",
-          `None of your ${phoneContacts.length} contacts are on LinksChat yet`
-        );
-      }
-    } catch (err) {
-      toast.dismiss(syncId!);
-      toast.error("Sync failed", "Could not load contacts. Please try again.");
-    } finally {
-      setSyncing(false);
-    }
-  }, [toast, owner]);
-
   const onRefresh = async () => {
     setRefreshing(true);
     await loadAndSync();
@@ -529,8 +423,8 @@ export default function PhoneContactsScreen() {
         dispatch(addOrUpdateChat(res.data.chat));
         router.push(`/chat/${res.data.chat._id}`);
       }
-    } catch {
-      toast.error("Failed", "Could not open chat");
+    } catch (err) {
+      if (!isNotified(err)) toast.error("Failed", "Could not open chat");
     } finally {
       setCreatingChat(null);
     }
@@ -674,7 +568,7 @@ export default function PhoneContactsScreen() {
           />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
-              {matchedContacts.filter((c) => c.isOnline).length}
+              {matchedContacts.filter((c) => isOnlineNow(c._id, c.isOnline)).length}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
               Online now

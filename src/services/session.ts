@@ -16,6 +16,7 @@ const SESSION_KEYS = [
   "cachedUser",
   "pushToken",
   "pushTokenUser",
+  "appLockEnabled",
 ];
 
 // Also wipes the account's offline data (saved chats, the send queue and any
@@ -202,9 +203,62 @@ export async function restoreSession(): Promise<void> {
     return;
   }
 
-  // No cached user yet (first launch after updating to this version): there
-  // is nothing to open with, so this one time we do need the server. Retry a
-  // few times; tokens stay on disk either way, and once this succeeds the
-  // user is cached for every later launch.
-  await validateSession(3);
+  // No cached user: first launch after updating to this version, or the cache
+  // was lost. Try the server briefly — if it answers, that's a normal
+  // sign-in and the user gets cached for every later launch.
+  const first = await Promise.race([
+    validateSession(1),
+    new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), NO_CACHE_WAIT_MS)
+    ),
+  ]);
+  if (first === "ok" || first === "expired") return;
+
+  // The server couldn't be reached (offline / slow). Before, this dropped the
+  // user on the login screen even though their tokens were fine. Instead open
+  // the app on a placeholder user built from the token — enough to show their
+  // saved data — and let the background check (already running, and retried
+  // when the network returns) fill in the real profile or, if the server
+  // truly rejects the session, sign them out.
+  if (store.getState().auth.isAuthenticated) return;
+  const placeholder = placeholderUser(accessToken, refreshToken);
+  if (!placeholder) return; // unreadable tokens: nothing to open with
+
+  store.dispatch(
+    setCredentials({
+      user: placeholder,
+      accessToken,
+      refreshToken: refreshToken || "",
+      streamToken: streamToken || "",
+    })
+  );
+  await hydrateOfflineData().catch(() => {});
+}
+
+// How long a launch with no saved user waits for the server before opening
+// offline instead.
+const NO_CACHE_WAIT_MS = 6000;
+
+// Reads the user id out of a JWT (`{ userId }`), without verifying it — the
+// server does that as soon as we're online. Only used to open the app offline.
+function userIdFromToken(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const json = JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)));
+    return typeof json.userId === "string" ? json.userId : null;
+  } catch {
+    return null;
+  }
+}
+
+function placeholderUser(
+  accessToken: string | null,
+  refreshToken: string | null
+): User | null {
+  const _id = userIdFromToken(accessToken) ?? userIdFromToken(refreshToken);
+  if (!_id) return null;
+  return { _id, name: "", email: "", isOnline: false, lastSeen: "" };
 }

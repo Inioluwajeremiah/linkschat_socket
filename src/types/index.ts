@@ -69,6 +69,9 @@ export interface MessageSearchResult {
     | "call";
   displayName?: string;
   displayAvatar?: string;
+  // Phones for resolving device-saved names (sent by newer servers).
+  displayPhone?: string;
+  senderPhone?: string;
   callType: "audio" | "video";
   callStatus: "completed" | "missed";
   callDuration: number;
@@ -208,6 +211,11 @@ export interface ChatState {
 export interface SocketState {
   isConnected: boolean;
   onlineUsers: string[];
+  // True once the server has sent the full online list at least once —
+  // until then screens fall back to the isOnline that came with their data.
+  presenceSynced: boolean;
+  // Last-seen times received live (null = the user hides it).
+  lastSeen: Record<string, string | null>;
 }
 
 export interface Reel {

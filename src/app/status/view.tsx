@@ -49,6 +49,7 @@ import ZoomableImage from "./components/ZoomableImage";
 import StatusViewersSheet from "./components/StatusViewersSheet";
 import { addBlocked, removeBlocked } from "@/store/slices/blockedUserSlice";
 import { useBlockedIdSet } from "@/hooks/useIsBlockedUser";
+import { useIsOnline } from "@/hooks/usePresence";
 
 const { width, height } = Dimensions.get("window");
 const EMOJI_REACTIONS = [
@@ -87,6 +88,7 @@ const safePlayerCall = (fn: () => void) => {
 };
 
 export default function StatusViewScreen() {
+  const isOnlineNow = useIsOnline();
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId?: string }>();
   const { user } = useAppSelector((s) => s.auth);
@@ -1148,7 +1150,7 @@ export default function StatusViewScreen() {
                     </Text>
                   </LinearGradient>
                 )}
-                {currentGroup.user.isOnline && (
+                {isOnlineNow(currentGroup.user._id, currentGroup.user.isOnline) && (
                   <View style={styles.menuOnlineDot} />
                 )}
               </View>
@@ -1171,7 +1173,7 @@ export default function StatusViewScreen() {
                   style={[
                     styles.menuOnlineChip,
                     {
-                      backgroundColor: currentGroup.user.isOnline
+                      backgroundColor: isOnlineNow(currentGroup.user._id, currentGroup.user.isOnline)
                         ? "rgba(0,212,170,0.1)"
                         : "rgba(85,85,119,0.1)",
                     },
@@ -1181,7 +1183,7 @@ export default function StatusViewScreen() {
                     style={[
                       styles.menuOnlineChipDot,
                       {
-                        backgroundColor: currentGroup.user.isOnline
+                        backgroundColor: isOnlineNow(currentGroup.user._id, currentGroup.user.isOnline)
                           ? "#00d4aa"
                           : "#555577",
                       },
@@ -1191,13 +1193,13 @@ export default function StatusViewScreen() {
                     style={[
                       styles.menuOnlineChipText,
                       {
-                        color: currentGroup.user.isOnline
+                        color: isOnlineNow(currentGroup.user._id, currentGroup.user.isOnline)
                           ? "#00d4aa"
                           : "#555577",
                       },
                     ]}
                   >
-                    {currentGroup.user.isOnline ? "Active now" : "Offline"}
+                    {isOnlineNow(currentGroup.user._id, currentGroup.user.isOnline) ? "Active now" : "Offline"}
                   </Text>
                 </View>
               </View>

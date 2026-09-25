@@ -230,9 +230,11 @@ import {
   setOnlineUsers,
   addOnlineUser,
   removeOnlineUser,
+  setLastSeen,
 } from "../store/slices/socketSlice";
 import { setIncomingCall, clearCall } from "../store/slices/callSlice";
-import { Message } from "../types";
+import { Message, User } from "../types";
+import { store } from "../store";
 import { useToast } from "../context/ToastContext";
 import * as Notifications from "expo-notifications";
 import * as Haptics from "expo-haptics";
@@ -242,6 +244,76 @@ import {
   clearOngoingCall,
 } from "@/store/slices/ongoingCallsSlice";
 import { useContactNameResolver } from "@/hooks/useContactName";
+
+// The server only pushes a message to users with no open socket, and the
+// socket stays open for a grace period after the app is backgrounded (see
+// the pause logic below). A message arriving in that window would otherwise
+// show nothing — calls already post a local notification here, so do the
+// same for messages.
+function notifyIfBackgrounded(message: Message) {
+  // Call-log entries have their own missed-call handling.
+  if (AppState.currentState === "active" || message.type === "call") return;
+
+  const state = store.getState();
+  const myId = state.auth.user?._id;
+  const sender = message.sender as User | string;
+  const senderId = typeof sender === "string" ? sender : sender?._id;
+  if (!myId || senderId === myId) return;
+
+  const chat = state.chat.chats.find((c) => c._id === message.chatId);
+  const senderUser = chat?.participants.find(
+    (p) => p.user._id === senderId
+  )?.user;
+  const senderName =
+    typeof sender === "string" ? senderUser?.name : sender?.name;
+  const phone = senderUser?.phone;
+  const normalized = phone ? phone.replace(/\D/g, "").slice(-9) : "";
+  const displayName =
+    (normalized && state.contacts.phoneToName[normalized]) ||
+    senderName ||
+    "New message";
+
+  const preview =
+    message.type === "text"
+      ? message.content
+      : message.type === "image"
+      ? "📷 Photo"
+      : message.type === "video"
+      ? "🎥 Video"
+      : message.type === "document"
+      ? `📄 ${message.mediaName || "Document"}`
+      : message.type === "gif"
+      ? "GIF"
+      : message.type === "sticker"
+      ? "Sticker"
+      : message.type === "location"
+      ? "📍 Location"
+      : "🎵 Voice message";
+
+  const isGroup = chat?.type === "group";
+  Notifications.scheduleNotificationAsync({
+    content: {
+      title: `💬 ${isGroup ? chat?.name || "Group" : displayName}`,
+      body: isGroup ? `${displayName}: ${preview}` : preview,
+      data: { type: "new_message", chatId: message.chatId },
+      sound: true,
+    },
+    trigger: null,
+  }).catch(() => {});
+}
+
+// Several messages for a new chat can arrive together — fetch once.
+let chatsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+function refreshChatsSoon() {
+  if (chatsRefreshTimer) return;
+  chatsRefreshTimer = setTimeout(async () => {
+    chatsRefreshTimer = null;
+    try {
+      const res = await chatApi.getChats();
+      if (res.success) store.dispatch(setChats(res.data.chats));
+    } catch {}
+  }, 300);
+}
 
 export const useSocket = () => {
   const dispatch = useAppDispatch();
@@ -333,12 +405,23 @@ export const useSocket = () => {
       dispatch(addOnlineUser(userId));
     });
 
-    socket.on("user:offline", ({ userId }: { userId: string }) => {
-      dispatch(removeOnlineUser(userId));
-    });
+    socket.on(
+      "user:offline",
+      ({ userId, lastSeen }: { userId: string; lastSeen?: string | null }) => {
+        dispatch(removeOnlineUser(userId));
+        dispatch(setLastSeen({ userId, lastSeen: lastSeen ?? null }));
+      }
+    );
 
     socket.on("message:new", (message: Message) => {
+      // First message of a chat someone else just started: we don't have
+      // that chat yet, so it wouldn't show in the list — fetch it.
+      const isNewChat = !store
+        .getState()
+        .chat.chats.some((c) => c._id === message.chatId);
       dispatch(addMessage({ chatId: message.chatId, message }));
+      notifyIfBackgrounded(message);
+      if (isNewChat) refreshChatsSoon();
     });
 
     socket.on("user:blocked", ({ userId }: { userId: string }) => {

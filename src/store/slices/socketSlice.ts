@@ -4,6 +4,8 @@ import { SocketState } from "../../types";
 const initialState: SocketState = {
   isConnected: false,
   onlineUsers: [],
+  presenceSynced: false,
+  lastSeen: {},
 };
 
 const socketSlice = createSlice({
@@ -15,6 +17,7 @@ const socketSlice = createSlice({
     },
     setOnlineUsers: (state, action: PayloadAction<string[]>) => {
       state.onlineUsers = action.payload;
+      state.presenceSynced = true;
     },
     addOnlineUser: (state, action: PayloadAction<string>) => {
       if (!state.onlineUsers.includes(action.payload)) {
@@ -26,9 +29,20 @@ const socketSlice = createSlice({
         (id) => id !== action.payload
       );
     },
+    setLastSeen: (
+      state,
+      action: PayloadAction<{ userId: string; lastSeen: string | null }>
+    ) => {
+      state.lastSeen[action.payload.userId] = action.payload.lastSeen;
+    },
   },
 });
 
-export const { setConnected, setOnlineUsers, addOnlineUser, removeOnlineUser } =
-  socketSlice.actions;
+export const {
+  setConnected,
+  setOnlineUsers,
+  addOnlineUser,
+  removeOnlineUser,
+  setLastSeen,
+} = socketSlice.actions;
 export default socketSlice.reducer;

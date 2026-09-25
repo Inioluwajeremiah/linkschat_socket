@@ -493,7 +493,9 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants";
+import { toast } from "../context/ToastContext";
 import { MessageSearchResult } from "../types";
+import { dropDeletedParticipants } from "../utils/participants";
 
 // Carries the HTTP status code (when there is one) alongside the message,
 // so callers can distinguish "server said 401" from "request failed for
@@ -508,12 +510,22 @@ const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 
 export class ApiError extends Error {
   status?: number;
-  constructor(message: string, status?: number) {
+  // Machine-readable reason from the server, e.g. "NOT_A_CONTACT".
+  code?: string;
+  // Set once the user has already been shown this error, so callers can
+  // skip their own generic message.
+  notified = false;
+  constructor(message: string, status?: number, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
+
+// Already shown to the user (see ApiError.notified)?
+export const isNotified = (err: unknown) =>
+  err instanceof ApiError && err.notified;
 
 class ApiService {
   private baseUrl: string;
@@ -556,7 +568,7 @@ class ApiService {
       });
 
       try {
-        data = await response.json();
+        data = dropDeletedParticipants(await response.json());
       } catch {
         data = {};
       }
@@ -577,7 +589,11 @@ class ApiService {
     }
 
     if (!response.ok) {
-      throw new ApiError(data.message || "Request failed", response.status);
+      throw new ApiError(
+        data.message || "Request failed",
+        response.status,
+        data.code
+      );
     }
 
     return data;
@@ -697,11 +713,22 @@ export const chatApi = {
       data: { chats: import("../types").Chat[] };
     }>(`/chats?page=${page}`),
 
+  // A refusal (blocked, or they only accept messages from contacts) is
+  // shown here with the server's reason, for every screen that starts a
+  // chat — several of them catch errors silently.
   createPrivateChat: (recipientId: string) =>
-    api.post<{ success: boolean; data: { chat: import("../types").Chat } }>(
-      "/chats/private",
-      { recipientId }
-    ),
+    api
+      .post<{ success: boolean; data: { chat: import("../types").Chat } }>(
+        "/chats/private",
+        { recipientId }
+      )
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          toast.error("Can't message this user", err.message);
+          err.notified = true;
+        }
+        throw err;
+      }),
 
   createGroupChat: (data: {
     name: string;
@@ -870,11 +897,14 @@ export const platformContactsApi = {
 
 // Phone contacts sync
 export const contactsSyncApi = {
-  sync: (phoneNumbers: string[], deviceCountryCode: string) =>
+  // `names` (parallel to phoneNumbers) are the names saved on this phone.
+  // The server keeps them only for contacts who are on LinksChat, so push
+  // notifications can show "Mum" rather than the sender's profile name.
+  sync: (phoneNumbers: string[], deviceCountryCode: string, names?: string[]) =>
     api.post<{
       success: boolean;
       data: { users: import("../types").User[]; total: number };
-    }>("/users/contacts/sync", { phoneNumbers, deviceCountryCode }),
+    }>("/users/contacts/sync", { phoneNumbers, names, deviceCountryCode }),
 };
 
 // Calls

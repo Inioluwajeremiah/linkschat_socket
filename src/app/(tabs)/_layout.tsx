@@ -12,6 +12,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAppSelector } from "../../hooks/useRedux";
 import { BlurView } from "expo-blur";
 import { Colors } from "@/constants";
+import { setAppReady } from "@/services/pendingNavigation";
 
 function TabIcon({
   name,
@@ -84,6 +85,13 @@ function TabIcon({
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+
+  // Opens anything queued before the app was on screen (a notification
+  // tapped to launch the app).
+  useEffect(() => {
+    setAppReady(true);
+    return () => setAppReady(false);
+  }, []);
   const chats = useAppSelector((s) => s.chat.chats);
   const totalUnread = chats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
 

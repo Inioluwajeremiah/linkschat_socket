@@ -15,7 +15,7 @@ import { useAppDispatch } from "@/hooks/useRedux";
 import { useStartCall } from "@/hooks/useStartCall";
 import { useToast } from "@/context/ToastContext";
 import { useContactNameResolver } from "@/hooks/useContactName";
-import { chatApi } from "@/services/api";
+import { chatApi, isNotified } from "@/services/api";
 import { addOrUpdateChat } from "@/store/slices/chatSlice";
 import { User } from "@/types";
 import { formatDistanceToNow } from "@/utils/date";
@@ -84,8 +84,9 @@ export default function StatusViewersSheet({
       } else {
         showError("Couldn't start chat", "Try again in a moment.");
       }
-    } catch {
-      showError("Couldn't start chat", "Try again in a moment.");
+    } catch (err) {
+      if (!isNotified(err))
+        showError("Couldn't start chat", "Try again in a moment.");
     }
   };
 

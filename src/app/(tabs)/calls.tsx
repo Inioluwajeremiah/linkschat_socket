@@ -724,6 +724,7 @@ import { useStartCall } from "../../hooks/useStartCall";
 import { formatDistanceToNow } from "../../utils/date";
 import { useContactNameResolver } from "@/hooks/useContactName";
 import { socketService } from "../../services/socket";
+import { readJson, writeJson } from "../../services/offlineStorage";
 import CallDetailsModal, { OngoingInfo } from "@/components/CallDetailsModal";
 
 /** "Missed"/"No Answer"/"Declined"/"Ongoing"/"Incoming"/"Outgoing" per the
@@ -1099,16 +1100,27 @@ export default function CallsScreen() {
   }, []);
 
   const loadCalls = useCallback(async () => {
+    // Offline reading: show the history saved on this device straight away
+    // (a no-op if something is already on screen), then refresh it.
+    const saved = await readJson<CallHistory[]>("calls");
+    if (isMountedRef.current && saved?.length) {
+      setCalls((current) => (current.length ? current : saved));
+      setLoading(false);
+    }
+
     try {
       const res = await callApi.getCallHistory();
       if (!isMountedRef.current) return;
       if (res.success) {
         setCalls(res.data.calls);
+        writeJson("calls", res.data.calls.slice(0, 200)).catch(() => {});
       } else {
         showError("Couldn't load calls", "Try again in a moment.");
       }
     } catch {
-      if (isMountedRef.current) {
+      // With saved history showing, a failed refresh is just "offline" (the
+      // connection banner says so) — only complain if there's nothing to show.
+      if (isMountedRef.current && !saved?.length) {
         showError("Couldn't load calls", "Try again in a moment.");
       }
     } finally {

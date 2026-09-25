@@ -8,6 +8,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppDispatch, useAppSelector } from "./useRedux";
 import { api } from "../services/api";
 import { IncomingCallData, setIncomingCall } from "@/store/slices/callSlice";
+import { runWhenAppReady } from "@/services/pendingNavigation";
+
+// Notification taps already acted on (by request identifier).
+const handledTaps = new Set<string>();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -243,8 +247,13 @@ export function usePushNotifications() {
     /**
      * Handle user tapping a notification.
      */
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
+    const handleResponse = (response: Notifications.NotificationResponse) => {
+      // The same tap can arrive twice (listener + launch response).
+      const tapId = response.notification.request.identifier;
+      if (handledTaps.has(tapId)) return;
+      handledTaps.add(tapId);
+      Notifications.clearLastNotificationResponseAsync().catch(() => {});
+
         const data = response.notification.request.content
           .data as PushNotificationData;
 
@@ -256,7 +265,8 @@ export function usePushNotifications() {
            */
           case "new_message": {
             if (data.chatId) {
-              router.push(`/chat/${data.chatId}`);
+              const chatId = data.chatId;
+              runWhenAppReady(() => router.push(`/chat/${chatId}`));
             }
 
             break;
@@ -307,7 +317,7 @@ export function usePushNotifications() {
 
             dispatch(setIncomingCall(incomingCall));
 
-            router.push("/call/incoming");
+            runWhenAppReady(() => router.push("/call/incoming"));
 
             break;
           }
@@ -316,7 +326,7 @@ export function usePushNotifications() {
            * New status
            */
           case "new_status": {
-            router.push("/(tabs)/status");
+            runWhenAppReady(() => router.push("/(tabs)/status"));
 
             break;
           }
@@ -325,7 +335,18 @@ export function usePushNotifications() {
             console.warn("Unknown notification type:", data.type);
           }
         }
-      });
+    };
+
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener(handleResponse);
+
+    // A tap that launched the app from closed happened before this listener
+    // existed (it's only set up once the session is restored) — pick it up.
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response && !cancelled) handleResponse(response);
+      })
+      .catch(() => {});
 
     /**
      * Cleanup listeners when component unmounts

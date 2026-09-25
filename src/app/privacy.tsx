@@ -11,9 +11,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as LocalAuthentication from "expo-local-authentication";
+import {
+  authenticateOwner,
+  canUseAppLock,
+  setAppLockEnabled,
+} from "../services/appLock";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
+import { useSignOut } from "../hooks/useSignOut";
 import { privacyApi } from "../services/api";
 import { PrivacySettings } from "../types";
 
@@ -79,6 +84,7 @@ function SettingRow({
 
 export default function PrivacyScreen() {
   const router = useRouter();
+  const signOut = useSignOut();
   const { colors } = useTheme();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -95,7 +101,7 @@ export default function PrivacyScreen() {
     try {
       const [res, bio] = await Promise.all([
         privacyApi.getSettings(),
-        LocalAuthentication.hasHardwareAsync(),
+        canUseAppLock(),
       ]);
       if (res.success) {
         const s = (res.data.settings as any)?.privacySettings || {};
@@ -105,7 +111,11 @@ export default function PrivacyScreen() {
           disableReadReceipts: s.disableReadReceipts ?? false,
           onlyContactsCanMessage: s.onlyContactsCanMessage ?? false,
         });
-        setAppLock((res.data.settings as any)?.appLockEnabled ?? false);
+        const lockOn = (res.data.settings as any)?.appLockEnabled ?? false;
+        setAppLock(lockOn);
+        // The server holds the account's choice; the device copy is what
+        // the lock screen reads (so it works offline).
+        setAppLockEnabled(lockOn);
       }
       setBiometricAvailable(bio);
     } catch (err) {
@@ -133,22 +143,30 @@ export default function PrivacyScreen() {
   };
 
   const handleAppLock = async (value: boolean) => {
-    if (value && biometricAvailable) {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Authenticate to enable app lock",
-      });
-      if (!result.success) {
-        toast.error("Authentication failed");
-        return;
-      }
+    if (!biometricAvailable) {
+      toast.error(
+        "No screen lock",
+        "Set up Face ID, fingerprint or a passcode on this phone first"
+      );
+      return;
+    }
+    // Turning it off needs the owner too — otherwise anyone holding the
+    // unlocked phone could switch it off.
+    const ok = await authenticateOwner(
+      value ? "Confirm to turn on App Lock" : "Confirm to turn off App Lock"
+    );
+    if (!ok) {
+      toast.error("Authentication failed");
+      return;
     }
     setAppLock(value);
     try {
       await privacyApi.updateAppLock(value);
-      toast.success(value ? "App lock enabled" : "Disabled");
+      await setAppLockEnabled(value);
+      toast.success(value ? "App lock enabled" : "App lock disabled");
     } catch {
       setAppLock(!value);
-      toast.error("Failed");
+      toast.error("Failed to save");
     }
   };
 
@@ -241,17 +259,17 @@ export default function PrivacyScreen() {
             onToggle={(v) => updateSetting("disableReadReceipts", v)}
             colors={colors}
           />
-          {/* <SettingRow
+          <SettingRow
             icon="people-outline"
             label="Only Contacts Can Message"
-            sub="Strangers can't start a chat with you"
+            sub="Only people saved in your phone can message or call you"
             value={settings.onlyContactsCanMessage}
             onToggle={(v) => updateSetting("onlyContactsCanMessage", v)}
             colors={colors}
-          /> */}
+          />
         </View>
 
-        {/* <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
           APP SECURITY
         </Text>
         <View
@@ -262,21 +280,17 @@ export default function PrivacyScreen() {
         >
           <SettingRow
             icon="finger-print-outline"
-            label={
-              biometricAvailable
-                ? "App Lock (Biometric/Face ID)"
-                : "App Lock (unavailable)"
-            }
+            label="App Lock"
             sub={
               biometricAvailable
-                ? "Require biometric to open app"
-                : "No biometric hardware found"
+                ? "Require Face ID, fingerprint or passcode to open LinksChat"
+                : "Set up a screen lock on this phone to use App Lock"
             }
             value={appLock}
             onToggle={handleAppLock}
             colors={colors}
           />
-        </View> */}
+        </View>
 
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
           BLOCKED USERS
@@ -303,6 +317,30 @@ export default function PrivacyScreen() {
               Blocked Users
             </Text>
             <Ionicons name="chevron-forward" size={16} color="#ff4757" />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+          ACCOUNT
+        </Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <TouchableOpacity style={styles.navRow} onPress={signOut}>
+            <View
+              style={[
+                styles.rowIcon,
+                { backgroundColor: "rgba(255,71,87,0.1)" },
+              ]}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#ff4757" />
+            </View>
+            <Text style={[styles.rowLabel, { color: "#ff4757", flex: 1 }]}>
+              Sign Out
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

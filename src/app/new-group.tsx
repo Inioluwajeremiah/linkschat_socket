@@ -657,8 +657,10 @@ import { User } from "../types";
 import { useAppDispatch, useAppSelector } from "../hooks/useRedux";
 import { addOrUpdateChat } from "../store/slices/chatSlice";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import { useIsOnline } from "@/hooks/usePresence";
 
 export default function NewGroupScreen() {
+  const isOnlineNow = useIsOnline();
   const { colors, isDark } = useTheme();
   const resolveContact = useContactNameResolver();
   const router = useRouter();
@@ -976,7 +978,7 @@ export default function NewGroupScreen() {
                             </Text>
                           </LinearGradient>
                         )}
-                        {user.isOnline && (
+                        {isOnlineNow(user._id, user.isOnline) && (
                           <View
                             style={[
                               styles.onlineDot,

@@ -1,5 +1,6 @@
 import { Spacing } from "@/constants";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import { useIsOnline, useLastSeen } from "@/hooks/usePresence";
 import { Chat, Message, User } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -21,6 +22,7 @@ export default function ChatItem({
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const resolveContact = useContactNameResolver();
+  const isOnlineNow = useIsOnline();
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -41,7 +43,9 @@ export default function ChatItem({
   const hideLastSeen = privacySettings?.hideLastSeen ?? false;
 
   // Only show online dot if user hasn't hidden online status
-  const isOnline = !hideOnlineStatus && otherParticipant?.isOnline;
+  const isOnline =
+    !hideOnlineStatus &&
+    isOnlineNow(otherParticipant?._id, otherParticipant?.isOnline);
 
   // ── Contact name resolution ──────────────────────────────────────────────
   // `isContact` is true when the other participant's phone number matches

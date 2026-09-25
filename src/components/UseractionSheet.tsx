@@ -234,7 +234,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { useAppDispatch } from "../hooks/useRedux";
 import { useStartCall } from "../hooks/useStartCall";
-import { chatApi, privacyApi } from "../services/api";
+import { chatApi, privacyApi, isNotified } from "../services/api";
 import { addOrUpdateChat } from "../store/slices/chatSlice";
 // import { addBlocked, removeBlocked } from "../store/slices/blockedSlice";
 import { useToast } from "../context/ToastContext";
@@ -291,8 +291,8 @@ export default function UserActionSheet({ user, onClose, colors }: Props) {
         onClose();
         router.push(`/chat/${res.data.chat._id}`);
       }
-    } catch {
-      toast.error("Failed to open chat");
+    } catch (err) {
+      if (!isNotified(err)) toast.error("Failed to open chat");
     }
   };
 

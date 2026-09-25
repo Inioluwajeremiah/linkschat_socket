@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useAppDispatch } from "./useRedux";
-import { chatApi } from "../services/api";
+import { chatApi, isNotified } from "../services/api";
 import { addOrUpdateChat } from "../store/slices/chatSlice";
 import { useToast } from "../context/ToastContext";
 
@@ -30,8 +30,8 @@ export function useStartCall() {
       } else {
         toast.error("Failed to start call");
       }
-    } catch {
-      toast.error("Failed to start call");
+    } catch (err) {
+      if (!isNotified(err)) toast.error("Failed to start call");
     } finally {
       setCallLoading(null);
     }

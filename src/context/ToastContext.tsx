@@ -6,6 +6,7 @@ import {
   useRef,
   ReactNode,
   useEffect,
+  useMemo,
 } from "react";
 import {
   View,
@@ -238,7 +239,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const dismissAll = useCallback(() => setToasts([]), []);
 
-  const ctx: ToastContextType = {
+  // Memoized: the provider re-renders on every toast shown/dismissed, and a
+  // fresh object each time made every consumer's callbacks/effects that
+  // depend on `toast` re-run — the chats tab re-synced contacts (showing
+  // yet another toast) in a loop.
+  const ctx = useMemo<ToastContextType>(() => ({
     success: (t, d) => add("success", t, d),
     error: (t, d) => add("error", t, d, 5000),
     warning: (t, d) => add("warning", t, d),
@@ -259,7 +264,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-  };
+  }), [add, dismiss, dismissAll]);
 
   return (
     <ToastContext.Provider value={ctx}>

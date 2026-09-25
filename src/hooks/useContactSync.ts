@@ -3,13 +3,16 @@ import { getLocales } from "expo-localization";
 import * as Contacts from "expo-contacts";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { useToast } from "../context/ToastContext";
-import { useAppSelector } from "./useRedux";
+import { useAppDispatch, useAppSelector } from "./useRedux";
+import { store } from "../store";
 import { contactsSyncApi } from "../services/api";
-import { User } from "../types";
+import {
+  loadDeviceContacts,
+  MatchedContact,
+  setMatchedContacts,
+} from "../store/slices/contactsSlice";
 
-export interface MatchedContact extends User {
-  phoneName: string;
-}
+export type { MatchedContact };
 
 interface UseContactSyncResult {
   matchedContacts: MatchedContact[];
@@ -18,15 +21,49 @@ interface UseContactSyncResult {
   syncContacts: () => Promise<void>;
 }
 
-export function useContactSync(): UseContactSyncResult {
-  const toast = useToast();
-  const { user: owner } = useAppSelector((s) => s.auth);
+const noop = () => "";
+const silentToast = {
+  loading: noop,
+  dismiss: noop,
+  info: noop,
+  success: noop,
+  error: noop,
+};
 
-  const [matchedContacts, setMatchedContacts] = useState<MatchedContact[]>([]);
-  const [totalPhoneContacts, setTotalPhoneContacts] = useState(0);
+// One sync at a time app-wide — a second caller just waits for it.
+let inFlight: Promise<void> | null = null;
+
+// `silent`: no toasts. For background syncs (the chats tab syncs on every
+// open) — only screens where the user asked to sync should report on it.
+export function useContactSync({
+  silent = false,
+}: { silent?: boolean } = {}): UseContactSyncResult {
+  const realToast = useToast();
+  const dispatch = useAppDispatch();
+
+  // Kept in Redux so every screen sees the latest sync, wherever it ran.
+  const { matchedContacts, totalPhoneContacts } = useAppSelector(
+    (s) => s.contacts
+  );
   const [syncing, setSyncing] = useState(false);
 
   const syncContacts = useCallback(async () => {
+    if (inFlight) return inFlight;
+    inFlight = runSync().finally(() => {
+      inFlight = null;
+    });
+    return inFlight;
+  }, [realToast, dispatch, silent]);
+
+  // Reads owner/device-name state at call time rather than closing over it,
+  // so syncContacts keeps one identity — effects that depend on it (the
+  // chats tab's load-on-open) no longer re-run, and re-sync, whenever the
+  // user object or contact map updates.
+  async function runSync() {
+    const toast = silent ? silentToast : realToast;
+    const owner = store.getState().auth.user;
+    const hasDeviceNames =
+      Object.keys(store.getState().contacts.phoneToName).length > 0;
     setSyncing(true);
     const syncId = toast.loading("Syncing contacts...");
     try {
@@ -42,8 +79,6 @@ export function useContactSync(): UseContactSyncResult {
       const ownerCountry = owner?.phone
         ? parsePhoneNumberFromString(owner.phone)?.country
         : deviceCountry;
-
-      setTotalPhoneContacts(phoneContacts.length);
 
       const phoneToName: Record<string, string> = {};
       const allNumbers: string[] = [];
@@ -76,7 +111,8 @@ export function useContactSync(): UseContactSyncResult {
         const chunk = allNumbers.slice(i, i + chunkSize);
         const res = await contactsSyncApi.sync(
           chunk,
-          ownerCountry || deviceCountry
+          ownerCountry || deviceCountry,
+          chunk.map((n) => phoneToName[n] || "")
         );
         if (res.success) {
           const mapped: MatchedContact[] = res.data.users.map((u) => {
@@ -108,7 +144,16 @@ export function useContactSync(): UseContactSyncResult {
         return a.name.localeCompare(b.name);
       });
 
-      setMatchedContacts(unique);
+      dispatch(
+        setMatchedContacts({
+          matchedContacts: unique,
+          totalPhoneContacts: phoneContacts.length,
+        })
+      );
+      // We just read contacts with permission — if the device-name map used
+      // to show saved names is still empty (its first load ran before
+      // permission was granted, e.g. on sign-up), build it now.
+      if (!hasDeviceNames) dispatch(loadDeviceContacts({ force: true }));
       toast.dismiss(syncId!);
 
       if (unique.length > 0) {
@@ -130,7 +175,7 @@ export function useContactSync(): UseContactSyncResult {
     } finally {
       setSyncing(false);
     }
-  }, [toast, owner]);
+  }
 
   return { matchedContacts, totalPhoneContacts, syncing, syncContacts };
 }
