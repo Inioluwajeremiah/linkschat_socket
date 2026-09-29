@@ -275,6 +275,7 @@ import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
 import { loadDeviceContacts } from "@/store/slices/contactsSlice";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { useInAppUpdate } from "@/hooks/useInAppUpdate";
+import { useOtaUpdate } from "@/hooks/useOtaUpdate";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import NetworkBanner from "@/components/NetworkBanner";
 import AppLockGate from "@/components/AppLockGate";
@@ -294,6 +295,7 @@ function BlockedUsersInitializer() {
 }
 function InAppUpdateInitializer() {
   useInAppUpdate();
+  useOtaUpdate();
   return null;
 }
 function OfflineSyncInitializer() {

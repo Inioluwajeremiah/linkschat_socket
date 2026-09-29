@@ -7,6 +7,14 @@
     "icon": "./assets/images/icon.png",
     "scheme": "linkschat",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/054788a4-bea4-4813-9a57-d2c643b2503a",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "icon": {
         "dark": "./assets/icons/ios-dark.png",
