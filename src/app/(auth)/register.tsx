@@ -81,7 +81,7 @@ export default function RegisterScreen() {
       toast.dismiss(loadId!);
       if (res.success) {
         await AsyncStorage.setItem("pendingUserId", res.data.userId);
-        toast.success("Account created!", "Check your email for OTP");
+        toast.success("Account created!", "Check your inbox or spam for the OTP");
         setTimeout(
           () =>
             router.push({

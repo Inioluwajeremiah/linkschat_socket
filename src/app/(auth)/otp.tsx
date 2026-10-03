@@ -177,7 +177,7 @@ export default function OtpScreen() {
       setCanResend(false);
       setOtp(Array(OTP_LENGTH).fill(""));
       toast.dismiss(loadId);
-      toast.success("OTP resent!", "Check your email inbox");
+      toast.success("OTP resent!", "Check your inbox or spam folder");
     } catch {
       toast.error("Failed to resend", "Please try again");
     } finally {
@@ -252,6 +252,22 @@ export default function OtpScreen() {
                 {email}
               </Text>
             </Text>
+
+            <View
+              style={[
+                styles.spamHint,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons
+                name="mail-unread-outline"
+                size={16}
+                color={colors.textMuted}
+              />
+              <Text style={[styles.spamHintText, { color: colors.textMuted }]}>
+                Can't find it? Check your spam or junk folder.
+              </Text>
+            </View>
 
             {/* OTP Inputs */}
             <Animated.View
@@ -434,8 +450,19 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: 16,
   },
+  spamHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 32,
+  },
+  spamHintText: { fontSize: 13, flexShrink: 1 },
   email: { color: Colors.primary, fontWeight: "600" },
   otpRow: { flexDirection: "row", gap: 10, marginBottom: 36 },
   otpInput: {

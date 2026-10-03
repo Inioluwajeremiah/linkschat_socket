@@ -96,7 +96,7 @@ export default function LoginScreen() {
 
       if (res.success) {
         await AsyncStorage.setItem("pendingUserId", res.data.userId);
-        toast.success("OTP sent!", "Check your email inbox");
+        toast.success("OTP sent!", "Check your inbox or spam folder");
         setTimeout(
           () =>
             router.push({
