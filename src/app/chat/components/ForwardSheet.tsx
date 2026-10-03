@@ -140,7 +140,7 @@
 //         <View
 //           style={[
 //             styles.searchBar,
-//             { backgroundColor: colors.surface2, borderColor: colors.border },
+//             { backgroundColor: colors.surface, borderColor: colors.border },
 //           ]}
 //         >
 //           <Ionicons name="search" size={16} color={colors.textMuted} />
@@ -305,12 +305,11 @@ import {
   FlatList,
   TouchableOpacity,
   Modal,
-  Pressable,
-  Animated,
   TextInput,
   ActivityIndicator,
 } from "react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
@@ -337,25 +336,13 @@ export default function ForwardSheet({
   const { user: me } = useAppSelector((s) => s.auth);
   const toast = useToast();
   const resolveContact = useContactNameResolver();
-  const slideAnim = useRef(new Animated.Value(400)).current;
+  const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (visible) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 200,
-        friction: 22,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 400,
-        duration: 220,
-        useNativeDriver: true,
-      }).start();
+    if (!visible) {
       setSelected([]);
       setSearch("");
     }
@@ -402,55 +389,50 @@ export default function ForwardSheet({
     return name?.toLowerCase().includes(search.toLowerCase());
   });
 
-  if (!visible) return null;
+  const selectedNames = selected
+    .map((id) => chats.find((c) => c._id === id))
+    .filter(Boolean)
+    .map((c) => getChatDisplayName(c!) || "Unknown")
+    .join(", ");
 
   return (
     <Modal
       visible={visible}
-      transparent
-      animationType="none"
+      animationType="slide"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose} />
-      <Animated.View
+      <View
         style={[
-          styles.sheet,
-          {
-            backgroundColor: colors.surface,
-            transform: [{ translateY: slideAnim }],
-          },
+          styles.screen,
+          { backgroundColor: colors.background, paddingTop: insets.top },
         ]}
       >
-        <View style={[styles.handle, { backgroundColor: colors.border }]} />
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>
-            Forward to
-          </Text>
-          {selected.length > 0 && (
-            <TouchableOpacity
-              style={styles.sendBtn}
-              onPress={handleForward}
-              disabled={sending}
-            >
-              {sending ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <LinearGradient
-                  colors={["#00d4aa", "#00b090"]}
-                  style={styles.sendGradient}
-                >
-                  <Text style={styles.sendText}>Send ({selected.length})</Text>
-                  <Ionicons name="send" size={14} color="#fff" />
-                </LinearGradient>
-              )}
-            </TouchableOpacity>
-          )}
+        <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={10}
+            style={styles.backBtn}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>
+              Forward to
+            </Text>
+            {selected.length > 0 && (
+              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+                {selected.length} selected
+              </Text>
+            )}
+          </View>
         </View>
 
         <View
           style={[
             styles.searchBar,
-            { backgroundColor: colors.surface2, borderColor: colors.border },
+            { backgroundColor: colors.surface, borderColor: colors.border },
           ]}
         >
           <Ionicons name="search" size={16} color={colors.textMuted} />
@@ -461,12 +443,26 @@ export default function ForwardSheet({
             value={search}
             onChangeText={setSearch}
           />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch("")} hitSlop={8}>
+              <Ionicons
+                name="close-circle"
+                size={16}
+                color={colors.textMuted}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         <FlatList
           data={filtered}
           keyExtractor={(c) => c._id}
-          style={{ maxHeight: 380 }}
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: selected.length > 0 ? 100 : insets.bottom + 16,
+          }}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           renderItem={({ item: chat }) => {
             const other =
@@ -536,42 +532,61 @@ export default function ForwardSheet({
             </Text>
           }
         />
-      </Animated.View>
+
+        {selected.length > 0 && (
+          <View
+            style={[
+              styles.sendBar,
+              {
+                backgroundColor: colors.surface,
+                borderTopColor: colors.divider,
+                paddingBottom: insets.bottom + 12,
+              },
+            ]}
+          >
+            <Text
+              style={[styles.selectedNames, { color: colors.textPrimary }]}
+              numberOfLines={1}
+            >
+              {selectedNames}
+            </Text>
+            <TouchableOpacity
+              style={styles.sendBtn}
+              onPress={handleForward}
+              disabled={sending}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={["#00d4aa", "#00b090"]}
+                style={styles.sendGradient}
+              >
+                {sending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="send" size={20} color="#fff" />
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
-    paddingBottom: 40,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 18,
-  },
+  screen: { flex: 1 },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
-  },
-  title: { fontSize: 18, fontWeight: "800" },
-  sendBtn: { borderRadius: 99, overflow: "hidden" },
-  sendGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sendText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  backBtn: { padding: 2 },
+  title: { fontSize: 18, fontWeight: "800" },
+  subtitle: { fontSize: 12, marginTop: 1 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -580,7 +595,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 42,
     borderWidth: 1,
-    marginBottom: 12,
+    marginHorizontal: 16,
+    marginVertical: 12,
   },
   searchInput: { flex: 1, fontSize: 14 },
   chatRow: {
@@ -610,4 +626,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   empty: { textAlign: "center", paddingVertical: 30, fontSize: 14 },
+  sendBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  selectedNames: { flex: 1, fontSize: 14, fontWeight: "600" },
+  sendBtn: { borderRadius: 26, overflow: "hidden" },
+  sendGradient: {
+    width: 52,
+    height: 52,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });

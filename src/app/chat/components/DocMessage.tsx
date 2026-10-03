@@ -15,12 +15,14 @@ export default function DocMessage({
   size,
   url,
   isOwn,
+  onLongPress,
 }: {
   id: string;
   name?: string;
   size?: number;
   url: string;
   isOwn: boolean;
+  onLongPress?: () => void;
 }) {
   const fallbackExt = (name || "").split(".").pop()?.toLowerCase() || "pdf";
   const { status, progress, localUri, startDownload } = useMediaDownload(
@@ -50,7 +52,12 @@ export default function DocMessage({
   };
 
   return (
-    <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
+    <TouchableOpacity
+      onPress={handlePress}
+      onLongPress={onLongPress}
+      delayLongPress={280}
+      activeOpacity={0.8}
+    >
       <View style={docStyles.wrap}>
         <View
           style={[

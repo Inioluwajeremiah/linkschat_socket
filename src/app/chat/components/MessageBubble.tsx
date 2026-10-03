@@ -1095,6 +1095,7 @@ import { findBundledStickerSource } from "@/constants/stickers";
 import { colors } from "@stream-io/video-react-native-sdk";
 import { useTheme } from "@/context/ThemeContext";
 import { useContactNameResolver } from "@/hooks/useContactName";
+import LinkifiedText from "@/components/LinkifiedText";
 
 interface Props {
   message: Message;
@@ -1222,12 +1223,14 @@ function LockedVisualMedia({
   thumbnail,
   type,
   onReady,
+  onLongPress,
 }: {
   id: string;
   url: string;
   thumbnail?: string;
   type: "image" | "video";
   onReady: (localUri: string) => void;
+  onLongPress?: () => void;
 }) {
   const { status, progress, localUri, startDownload } = useMediaDownload(
     id,
@@ -1237,7 +1240,12 @@ function LockedVisualMedia({
 
   if (status === "downloaded" && localUri) {
     return (
-      <TouchableOpacity onPress={() => onReady(localUri)} activeOpacity={0.9}>
+      <TouchableOpacity
+        onPress={() => onReady(localUri)}
+        onLongPress={onLongPress}
+        delayLongPress={280}
+        activeOpacity={0.9}
+      >
         <Image
           source={{ uri: localUri }}
           style={styles.imageMsg}
@@ -1705,6 +1713,8 @@ export default function MessageBubble({
                   {isOwn ? (
                     <TouchableOpacity
                       onPress={() => onMediaPress(message.mediaUrl!, "image")}
+                      onLongPress={handleLongPress}
+                      delayLongPress={280}
                       activeOpacity={0.9}
                     >
                       <Image
@@ -1720,17 +1730,19 @@ export default function MessageBubble({
                       thumbnail={message.mediaThumbnail}
                       type="image"
                       onReady={(localUri) => onMediaPress(localUri, "image")}
+                      onLongPress={handleLongPress}
                     />
                   )}
                   {message.content ? (
-                    <Text
+                    <LinkifiedText
                       style={[
                         styles.imageCaption,
                         { color: isOwn ? "#fff" : colors.textPrimary },
                       ]}
+                      onLinkLongPress={handleLongPress}
                     >
                       {message.content}
-                    </Text>
+                    </LinkifiedText>
                   ) : null}
                 </View>
               ) : message.type === "audio" ? (
@@ -1753,6 +1765,8 @@ export default function MessageBubble({
                 isOwn ? (
                   <TouchableOpacity
                     onPress={() => onMediaPress(message.mediaUrl!, "video")}
+                    onLongPress={handleLongPress}
+                    delayLongPress={280}
                     activeOpacity={0.9}
                     style={styles.videoWrap}
                   >
@@ -1774,6 +1788,7 @@ export default function MessageBubble({
                     thumbnail={message.mediaThumbnail}
                     type="video"
                     onReady={(localUri) => onMediaPress(localUri, "video")}
+                    onLongPress={handleLongPress}
                   />
                 )
               ) : message.type === "document" ? (
@@ -1788,6 +1803,8 @@ export default function MessageBubble({
                         // console.warn("Failed to open document", e);
                       }
                     }}
+                    onLongPress={handleLongPress}
+                    delayLongPress={280}
                     activeOpacity={0.8}
                   >
                     <View style={docStyles.wrap}>
@@ -1835,6 +1852,7 @@ export default function MessageBubble({
                     size={message.mediaSize}
                     url={message.mediaUrl || ""}
                     isOwn={isOwn}
+                    onLongPress={handleLongPress}
                   />
                 )
               ) : message.type === "call" ? (
@@ -1945,15 +1963,16 @@ export default function MessageBubble({
                   )}
                 </TouchableOpacity>
               ) : (
-                <Text
+                <LinkifiedText
                   style={[
                     styles.textContent,
                     { color: colors.textPrimary },
                     // { color: isOwn ? "#fff" : colors.textPrimary },
                   ]}
+                  onLinkLongPress={handleLongPress}
                 >
                   {message.content}
-                </Text>
+                </LinkifiedText>
               )}
 
               <View
